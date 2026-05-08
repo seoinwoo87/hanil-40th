@@ -6,19 +6,27 @@ import google.generativeai as genai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 
-# 1. 페이지 설정 및 디자인
+# ==========================================
+# 1. 페이지 설정 및 디자인 (UI/UX)
+# ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
+
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; background-color: #F8FAFC; }
     .stMetric { background: white; border: 1px solid #E2E8F0; padding: 15px !important; border-radius: 12px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     .timeline-card { background: white; border: 1px solid #E2E8F0; border-radius: 15px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-left: 6px solid #2563EB; }
-    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #EFF6FF; color: #1D4ED8; margin-bottom: 10px; }
+    .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #EFF6FF; color: #1D4ED8; margin-bottom: 10px; margin-right: 5px; }
+    .ai-container { background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border: 1px solid #BAE6FD; border-radius: 12px; padding: 20px; margin-top: 15px; }
+    .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .stDataFrame { border: 1px solid #E2E8F0; border-radius: 10px; }
 </style>
 """, unsafe_allow_html=True)
 
-# 2. AI 및 데이터 로드 (캐시 적용)
+# ==========================================
+# 2. AI 및 구글 시트 데이터 로드
+# ==========================================
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     model = genai.GenerativeModel('gemini-1.5-flash')
@@ -39,44 +47,60 @@ def load_all_data():
                 data = sh.get_all_values()
                 if not data: return pd.DataFrame()
                 df = pd.DataFrame(data[1:], columns=data[0])
+                
+                # 학번 세탁 (소수점 제거, 공백 제거)
                 if '학번' in df.columns:
                     df['학번'] = df['학번'].astype(str).str.replace(',', '').str.split('.').str[0].str.strip()
+                
+                # 학생 식별용 이름 통합
                 n_col = '성명' if '성명' in df.columns else '이름'
                 if '학번' in df.columns and n_col in df.columns:
                     df['학생명'] = df[n_col].astype(str).str.strip()
                     df['식별'] = df['학번'] + " " + df['학생명']
                 return df
-            except: return pd.DataFrame()
+            except: 
+                return pd.DataFrame()
+                
         return process_sheet("31_내신"), process_sheet("21_모의고사"), process_sheet("51_시험복기"), process_sheet("61_비교과")
-    except: return [pd.DataFrame()]*4
+    except Exception as e: 
+        st.error(f"연결 오류: {e}")
+        return [pd.DataFrame()]*4
 
 df_scores, df_mock, df_ref, df_act = load_all_data()
 
-# 3. 사이드바 및 필터
 if df_scores.empty:
-    st.error("데이터를 불러오지 못했습니다. Secrets 설정이나 구글 시트 권한을 확인해주세요.")
+    st.error("데이터를 불러오지 못했습니다. 앱을 Reboot 하거나 구글 시트 권한을 확인해주세요.")
     st.stop()
 
+# ==========================================
+# 3. 사이드바 (메뉴 및 필터)
+# ==========================================
 with st.sidebar:
     st.title("🏫 한일고 40기 상담실")
     terms = sorted(df_scores['학기'].unique(), reverse=True)
     sel_term = st.selectbox("📅 학기 선택", terms)
+    
     students = sorted(df_scores[df_scores['학기'] == sel_term]['식별'].unique())
     sel_student = st.selectbox("👤 학생 선택", students)
-    sel_num = sel_student.split(" ")[0]
+    sel_num = sel_student.split(" ")[0] # 학번 추출
+    
     st.markdown("---")
-    menu = st.radio("📑 메뉴", ["📈 내신 성적", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 누적 비교과"])
+    menu = st.radio("📑 분석 메뉴", ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인"])
 
-st.header(f"📊 {sel_student} 리포트")
+st.header(f"📊 {sel_student} 분석 리포트")
 
-# 4. 내신 성적 (과목명 가독성 개선)
-if menu == "📈 내신 성적":
+# ==========================================
+# 4. 내신 분석 (중위값, 백분위 이중축 + 가독성)
+# ==========================================
+if menu == "📈 내신 분석":
     t1, t2 = st.tabs(["📊 시험별 상세", "📈 성적 추이"])
-    my_s = df_scores[(df_scores['식별'] == sel_student) & (df_scores['학기'] == sel_term)]
+    my_s_all = df_scores[(df_scores['학기'] == sel_term)].copy() # 중위값 계산용 전체 데이터
+    my_s = my_s_all[my_s_all['식별'] == sel_student]
     
     with t1:
         exam = st.selectbox("시험 선택", ["1회고사", "2회고사", "학기말"])
         filtered = my_s[my_s['시험'] == exam].copy()
+        
         if not filtered.empty:
             if exam == "학기말":
                 cols = st.columns(len(filtered))
@@ -84,10 +108,40 @@ if menu == "📈 내신 성적":
                     cols[i].metric(r['과목'], f"{r.get('등급','-')}등급")
             else:
                 filtered['점수'] = pd.to_numeric(filtered['점수'], errors='coerce')
-                fig = px.bar(filtered, x='과목', y='점수', text='점수', color='점수', color_continuous_scale='Blues')
-                fig.update_layout(margin=dict(b=100), xaxis=dict(tickangle=-45, title=""), yaxis=dict(range=[0, 105], title="원점수"))
+                
+                # 플롯용 데이터 및 중위값 계산
+                plot_data = []
+                for _, row in filtered.iterrows():
+                    all_scores = pd.to_numeric(my_s_all[(my_s_all['시험'] == exam) & (my_s_all['과목'] == row['과목'])]['점수'], errors='coerce').dropna()
+                    median_val = all_scores.median() if not all_scores.empty else 0
+                    plot_data.append({
+                        '과목': row['과목'], 
+                        '점수': row['점수'], 
+                        '중위값': median_val, 
+                        '백분위': pd.to_numeric(row.get('백분위', 0), errors='coerce')
+                    })
+                pdf = pd.DataFrame(plot_data)
+
+                fig = go.Figure()
+                # 1. 원점수 막대그래프
+                fig.add_trace(go.Bar(x=pdf['과목'], y=pdf['점수'], name="내 점수", marker_color="#3B82F6", text=pdf['점수'], textposition='auto'))
+                # 2. 학년 중위값 점선
+                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['중위값'], name="학년 중위값", mode='lines+markers', line=dict(color='#10B981', dash='dash', width=2)))
+                # 3. 백분위 꺾은선 (오른쪽 Y축)
+                if not pdf['백분위'].isnull().all():
+                    fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['백분위'], name="백분위(%)", yaxis="y2", mode='lines+markers+text', text=pdf['백분위'].apply(lambda x: f"{int(x)}%" if pd.notnull(x) else ""), line=dict(color='#EF4444', width=3)))
+                
+                # 그래프 가독성 레이아웃
+                fig.update_layout(
+                    xaxis=dict(tickangle=-45, tickfont=dict(size=14, color='black')),
+                    yaxis=dict(title="원점수", range=[0, 105]),
+                    yaxis2=dict(title="백분위", overlaying="y", side="right", range=[0, 105]),
+                    margin=dict(b=120),
+                    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
+                )
                 st.plotly_chart(fig, use_container_width=True)
-        else: st.info("데이터가 없습니다.")
+        else: 
+            st.info("해당 시험 데이터가 없습니다.")
     
     with t2:
         subs = sorted(my_s['과목'].unique())
@@ -97,66 +151,125 @@ if menu == "📈 내신 성적":
         trend['ord'] = trend['시험'].map({'1회고사':1, '2회고사':2, '학기말':3})
         st.plotly_chart(px.line(trend.sort_values('ord'), x='시험', y='점수', markers=True, text='점수'), use_container_width=True)
 
-# 5. 모의고사 분석 (표점/백분위/등급 3단 배치)
+# ==========================================
+# 5. 모의고사 분석 (요약표 및 전체 기록)
+# ==========================================
 elif menu == "🎯 모의고사 분석":
     my_m = df_mock[df_mock['학번'] == sel_num].copy()
     if not my_m.empty:
         latest = my_m.iloc[-1]
-        st.subheader(f"🎯 최근 시험: {latest['시험명']}")
+        st.subheader(f"🎯 최근 모의고사 요약: {latest['시험명']}")
         
-        def score_row(label, subj):
-            st.markdown(f"**{label}**")
-            c1, c2, c3 = st.columns(3)
-            c1.metric("표준점수", latest.get(f'{subj}_표준점수','-'))
-            c2.metric("백분위", f"{latest.get(f'{subj}_백분위','-')}%")
-            c3.metric("등급", f"{latest.get(f'{subj}_등급','-')}급")
-            st.markdown("---")
-
-        score_row("📘 국어", "국어")
-        score_row("📐 수학", "수학")
+        # 1. 최상단 대시보드 표
+        subjects = ["국어", "수학", "영어", "한국사", "사회탐구", "과학탐구"]
+        summary = []
+        for s in subjects:
+            summary.append({
+                "과목": s, 
+                "표준점수": latest.get(f'{s}_표준점수', '-'), 
+                "백분위": f"{latest.get(f'{s}_백분위', '-')}%", 
+                "등급": f"{latest.get(f'{s}_등급', '-')}등급"
+            })
+        st.table(pd.DataFrame(summary))
         
-        ec1, ec2 = st.columns(2)
-        ec1.metric("🔤 영어 등급", f"{latest.get('영어_등급','-')}등급")
-        t_kind = "사탐" if pd.notnull(latest.get('사회탐구_등급')) and latest.get('사회탐구_등급') != "" else "과탐"
-        ec2.metric(f"🧪 {t_kind} 등급", f"{latest.get(f'{t_kind}1_등급', latest.get(f'{t_kind}탐구_등급','-'))}등급")
-        
-        st.subheader("📈 백분위 추이")
+        # 2. 백분위 추이 그래프
+        st.markdown("---")
+        st.subheader("📈 주요 과목 백분위 변화 추이")
         for col in my_m.columns:
             if '백분위' in col: my_m[col] = pd.to_numeric(my_m[col], errors='coerce')
         fig_m = px.line(my_m, x='시험명', y=[c for c in my_m.columns if '백분위' in c], markers=True)
-        fig_m.update_layout(yaxis=dict(range=[0, 105]), margin=dict(b=80))
+        fig_m.update_layout(yaxis=dict(title="백분위(%)", range=[0, 105]), margin=dict(b=80))
         st.plotly_chart(fig_m, use_container_width=True)
-    else: st.info("모의고사 데이터가 없습니다.")
 
-# 6. 성찰 리포트
+        # 3. 전체 기록표 즉시 노출
+        st.markdown("---")
+        st.subheader("📝 전체 모의고사 누적 기록표")
+        st.dataframe(my_m.drop(columns=['학번','성명','학생식별','식별','학생명'], errors='ignore'), use_container_width=True)
+    else: 
+        st.info("모의고사 기록이 없습니다.")
+
+# ==========================================
+# 6. 성찰 리포트 (AI 피드백 포함)
+# ==========================================
 elif menu == "🧠 성찰 리포트":
     my_r = df_ref[df_ref['학번'] == sel_num].copy()
     if not my_r.empty:
         sel_ex = st.selectbox("시험 선택", my_r['시험명'].unique())
         row = my_r[my_r['시험명'] == sel_ex].iloc[-1]
+        
         cols = st.columns(2)
         idx = 0
         for k, v in row.items():
             if k in ['타임스탬프','학번','이름','성명','학생식별','식별','학생명','시험명'] or not v: continue
             with cols[idx%2]:
-                st.markdown(f"""<div style="background:white; border-left:5px solid #3B82F6; padding:15px; margin-bottom:10px; border-radius:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+                st.markdown(f"""<div style="background:white; border-left:5px solid #3B82F6; padding:15px; margin-bottom:10px; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                     <b>{k}</b><br>{v}</div>""", unsafe_allow_html=True)
             idx += 1
-    else: st.info("기록이 없습니다.")
+        
+        st.markdown("---")
+        if st.button("🤖 AI 상담교사 피드백 생성"):
+            with st.spinner("AI가 학생의 성찰을 분석 중입니다..."):
+                context = "\n".join([f"{k}: {v}" for k, v in row.items() if len(str(v)) > 5 and k not in ['학번','타임스탬프']])
+                res = model.generate_content(f"상담교사로서 다음 내용을 분석하고 학생을 격려하며 구체적인 학습 방향을 제안해줘:\n{context}")
+                st.markdown(f'<div class="ai-container"><b>🤖 AI 맞춤형 조언</b><br>{res.text}</div>', unsafe_allow_html=True)
+    else: 
+        st.info("성찰 기록이 없습니다.")
 
-# 7. 누적 비교과
-elif menu == "🏆 누적 비교과":
-    st.subheader("🏆 누적 활동 타임라인")
+# ==========================================
+# 7. 비교과 타임라인 (통계 + 필터링 + AI 요약)
+# ==========================================
+elif menu == "🏆 비교과 타임라인":
     my_act = df_act[df_act['학번'] == sel_num].copy()
+    
     if my_act.empty:
         st.info("기록된 활동이 없습니다.")
     else:
-        my_act = my_act.sort_values('활동 일자', ascending=False)
-        for i, row in my_act.iterrows():
+        # 시트의 열 이름 설정 (필요시 수정)
+        col_type = '활동의 성격' 
+        col_comp = '핵심 역량' if '핵심 역량' in my_act.columns else '핵심역량' # 시트 열 이름 유연성 확보
+        
+        # 1. 핵심역량 통계 대시보드
+        if col_comp in my_act.columns:
+            st.subheader("📊 핵심역량별 활동 분포")
+            comp_counts = my_act[col_comp].value_counts()
+            c_cols = st.columns(len(comp_counts) if len(comp_counts) > 0 else 1)
+            for i, (name, count) in enumerate(comp_counts.items()):
+                with c_cols[i % len(c_cols)]:
+                    st.markdown(f"""<div class="stat-box">
+                        <span style="font-size:0.9rem; color:#64748B;">{name}</span><br>
+                        <span style="font-size:1.5rem; font-weight:800; color:#2563EB;">{count}건</span>
+                    </div>""", unsafe_allow_html=True)
+            st.markdown("---")
+        
+        # 2. 다중 필터링 (성격별, 역량별)
+        st.subheader("🔍 활동 맞춤 검색")
+        f_col1, f_col2 = st.columns(2)
+        
+        with f_col1:
+            types = ["전체"] + sorted(my_act[col_type].dropna().unique().tolist()) if col_type in my_act.columns else ["전체"]
+            sel_type = st.selectbox("활동 성격별 보기", types)
+            
+        with f_col2:
+            comps = ["전체"] + sorted(my_act[col_comp].dropna().unique().tolist()) if col_comp in my_act.columns else ["전체"]
+            sel_comp = st.selectbox("핵심 역량별 보기", comps)
+        
+        # 필터 적용
+        filtered_act = my_act.copy()
+        if sel_type != "전체":
+            filtered_act = filtered_act[filtered_act[col_type] == sel_type]
+        if sel_comp != "전체":
+            filtered_act = filtered_act[filtered_act[col_comp] == sel_comp]
+            
+        st.markdown(f"**총 {len(filtered_act)}개의 활동이 검색되었습니다.**")
+        filtered_act = filtered_act.sort_values('활동 일자', ascending=False)
+        
+        # 3. 타임라인 카드 출력
+        for i, row in filtered_act.iterrows():
             st.markdown(f"""
             <div class="timeline-card">
-                <div class="badge">#{row.get('활동의 성격','활동')}</div>
-                <div style="font-size:1.3rem; font-weight:800; color:#1E40AF; margin-bottom:8px;">{row.get('활동 주제','주제 없음')}</div>
+                <div class="badge">#{row.get(col_type,'활동')}</div>
+                <div class="badge" style="background:#F0FDF4; color:#166534;">🏆 {row.get(col_comp,'역량 미지정')}</div>
+                <div style="font-size:1.3rem; font-weight:800; color:#1E40AF; margin-bottom:8px; margin-top:10px;">{row.get('활동 주제','주제 없음')}</div>
                 <div style="font-size:0.85rem; color:#64748B; margin-bottom:15px;">📅 {row.get('활동 일자','-')} | 📚 {row.get('연계 가능 교과(선택)','-')}</div>
                 <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.95rem; line-height:1.7;">
                     <b>💡 동기:</b> {row.get('활동 동기(왜 시작했나요)','')}<br><br>
@@ -165,7 +278,9 @@ elif menu == "🏆 누적 비교과":
                 </div>
             </div>
             """, unsafe_allow_html=True)
-            if st.button(f"🪄 생기부 문구 생성 ({i})"):
-                with st.spinner("작성 중..."):
-                    p = f"교사 관점에서 생기부용 요약 (~함 체): {row.get('핵심 활동 내용','')}"
+            
+            # AI 생기부 초안 버튼
+            if st.button(f"🪄 생기부 초안 생성 (활동 {i})"):
+                with st.spinner("AI가 생기부 문구를 작성 중입니다..."):
+                    p = f"교사 관점에서 다음 학생의 활동을 생기부 기록용으로 요약해줘 (~함 체 사용).\n내용: {row.get('핵심 활동 내용','')}\n결과: {row.get('결과 및 배우고 느낀 점','')}"
                     st.info(model.generate_content(p).text)
