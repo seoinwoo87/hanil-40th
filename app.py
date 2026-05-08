@@ -182,51 +182,61 @@ elif view_mode == "🧠 성찰 리포트":
                 ref_txt = "\n".join([f"Q: {k}\nA: {v}" for k, v in s_data.items() if len(str(v)) > 5 and k not in ['학번_정제', '식별', '타임스탬프']])
                 prompt = f"{selected_name} 학생의 성찰 답변입니다. 상담교사로서 따뜻한 격려와 학습 전략을 조언해줘.\n\n{ref_txt}"
                 st.markdown(f"""<div class="ai-container"><b>🤖 AI 전담교사의 분석 리포트</b><br>{model.generate_content(prompt).text}</div>""", unsafe_allow_html=True)
-# 이 코드를 추가해서 데이터가 어떻게 읽히는지 확인합니다.
-with st.expander("데이터 진단 도구 (클릭해서 확인)"):
-    st.write("비교과 시트 전체 행 개수:", len(df_activity))
-    st.write("비교과 시트의 열 이름들:", df_activity.columns.tolist())
-    if not df_activity.empty:
-        st.write("시트의 첫 번째 학생 식별값:", df_activity['식별'].iloc[0] if '식별' in df_activity.columns else "식별 열 없음")
-    st.write("현재 선택된 학생 식별값:", selected_student_id)
 # ==========================================
-# 8. 비교과 타임라인 (디버깅 모드 추가)
+# 8. 비교과 타임라인 (긴급 복구 및 진단 버전)
 # ==========================================
 elif view_mode == "🏆 비교과 타임라인":
-    if df_activity.empty:
-        st.error("⚠️ 비교과 데이터(61_비교과 탭)를 전혀 불러오지 못했습니다. 탭 이름을 확인해주세요.")
+    st.subheader("🏆 비교과 활동 타임라인")
+    
+    # [진단 1] 데이터 로드 여부 확인
+    if df_activity is None or df_activity.empty:
+        st.error("🚨 데이터를 불러오지 못했습니다. '61_비교과' 탭 이름이 정확한지, 데이터가 입력되어 있는지 확인해주세요.")
     else:
-        # 데이터가 있는지 확인하기 위해 상위 3개만 살짝 찍어보기 (나중에 지우셔도 됩니다)
-        # st.write("불러온 데이터 미리보기:", df_activity.head(3)) 
-
-        # 필터링 시작
-        my_act = df_activity[df_activity['식별'] == selected_student_id].sort_values(by='활동 일자', ascending=False)
+        # [진단 2] 식별값 생성 확인
+        # 시트의 '학번'과 '성명'(또는 이름)을 합쳐서 식별값을 다시 한번 강제로 만듭니다.
+        if '식별' not in df_activity.columns:
+            name_col = next((c for c in ['성명', '이름'] if c in df_activity.columns), None)
+            if '학번' in df_activity.columns and name_col:
+                df_activity['학번_정제'] = df_activity['학번'].astype(str).str.replace('.0', '', regex=False).str.strip()
+                df_activity['식별'] = df_activity['학번_정제'] + " " + df_activity[name_col].astype(str).str.strip()
         
+        # [진단 3] 학생 필터링
+        my_act = df_activity[df_activity['식별'] == selected_student_id].copy()
+        
+        # 화면에 필터링 결과 강제 출력 (디버깅용)
         if my_act.empty:
-            st.warning(f"🔔 {selected_student_id} 학생의 기록이 '61_비교과' 시트에 없습니다.")
-            st.info("""
-            **확인해보세요:**
-            1. 시트의 '학번' 열에 **1514**가 정확히 적혀 있나요?
-            2. 시트의 '성명' 혹은 '이름' 열에 **심승민**이 정확히 적혀 있나요?
-            3. 혹시 학번에 소수점(1514.0)이 붙어 있지는 않나요?
-            """)
+            st.warning(f"🔎 {selected_student_id} 학생의 기록을 찾는 중이나, 일치하는 데이터가 없습니다.")
+            with st.expander("📝 데이터가 안 나올 때 체크리스트 (클릭)"):
+                st.write("1. 현재 선택된 학생 식별값:", f"[{selected_student_id}]")
+                st.write("2. 비교과 시트의 열 목록:", df_activity.columns.tolist())
+                if not df_activity.empty:
+                    st.write("3. 시트 첫 줄의 식별값 예시:", f"[{df_activity['식별'].iloc[0]}]")
+                    st.info("💡 위 1번과 3번의 모양(띄어쓰기, 숫자 소수점 등)이 완벽히 같아야 합니다.")
         else:
+            # 정상 출력 로직
+            my_act = my_act.sort_values(by='활동 일자', ascending=False)
             st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
             for idx, row in my_act.iterrows():
-                # 열 이름이 길어서 생기는 문제를 방지하기 위해 안전하게 가져오기
-                act_date = row.get('활동 일자', '날짜 없음')
-                act_type = row.get('활동의 성격', '구분 없음')
-                act_title = row.get('활동 주제', '주제 없음')
-                act_cap = row.get('핵심 역량 선택(최대 2개 선택)', '')
-                act_content = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
-                act_ref = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
+                # 열 이름이 시트와 다를 경우를 대비한 안전한 추출
+                d = row.get('활동 일자', '')
+                t = row.get('활동의 성격', '')
+                sub = row.get('활동 주제', '주제 없음')
+                cap = row.get('핵심 역량 선택(최대 2개 선택)', '')
+                cont = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
+                ref = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
 
-                st.markdown(f"""<div class="timeline-item"><div class="timeline-node"></div><div class="timeline-card">
-                    <span style="color:#64748B; font-size:0.9rem;">📅 {act_date} | {act_type}</span>
-                    <div style="font-size:1.2rem; font-weight:800; margin:10px 0;">{act_title}</div>
-                    <div style="margin-bottom:10px;"><span class="badge">#{act_cap}</span></div>
-                    <div style="background:#F8FAFC; padding:15px; border-radius:10px; font-size:0.95rem;">
-                        <b>내용:</b> {act_content}<br>
-                        <b>성찰:</b> {act_ref}
-                    </div></div></div>""", unsafe_allow_html=True)
+                st.markdown(f"""
+                <div class="timeline-item">
+                    <div class="timeline-node"></div>
+                    <div class="timeline-card">
+                        <span style="color:#64748B; font-size:0.9rem;">📅 {d} | {t}</span>
+                        <div style="font-size:1.2rem; font-weight:800; margin:10px 0;">{sub}</div>
+                        <div style="margin-bottom:10px;"><span class="badge">#{cap}</span></div>
+                        <div style="background:#F8FAFC; padding:15px; border-radius:10px; font-size:0.95rem;">
+                            <b>내용:</b> {cont}<br><br>
+                            <b>성찰:</b> {ref}
+                        </div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
