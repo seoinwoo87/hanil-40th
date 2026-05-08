@@ -50,13 +50,15 @@ st.markdown("""
 def load_all_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
-    # Secrets에 저장된 JSON 형식을 딕셔너리로 읽어옵니다.
     try:
-        creds_info = st.secrets["gcp_service_account"]
+        # [핵심 수정] Secrets 객체를 완벽한 파이썬 딕셔너리로 강제 변환합니다.
+        creds_info = dict(st.secrets["gcp_service_account"])
         creds = ServiceAccountCredentials.from_json_key_dict(creds_info, scope)
         client = gspread.authorize(creds)
         doc = client.open("40기 마스터 파일")
     except Exception as e:
+        # 연결에 실패하면 뭉뚱그리지 않고, "정확히 뭐 때문에 실패했는지" 화면에 출력합니다.
+        st.error(f"🚨 구글 시트 연결 실패 상세 원인: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
     def get_safe_df(sheet_name):
@@ -85,8 +87,10 @@ def load_all_data():
     return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
 
 df_scores, df_mock, df_reflection, df_activity = load_all_data()
+
+# 에러 메시지를 더 구체적으로 띄우도록 수정
 if df_scores.empty and df_mock.empty:
-    st.error("데이터를 불러오지 못했습니다. Streamlit Cloud의 Secrets 설정을 확인해주세요.")
+    st.warning("데이터가 비어있거나 불러오기에 실패했습니다. 위 🚨상세 원인🚨을 확인해주세요.")
     st.stop()
 
 for df in [df_scores, df_mock]:
