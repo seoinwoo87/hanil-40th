@@ -53,7 +53,7 @@ def load_all_data():
     try:
         # [핵심 수정] Secrets 객체를 완벽한 파이썬 딕셔너리로 강제 변환합니다.
         creds_info = dict(st.secrets["gcp_service_account"])
-        creds = ServiceAccountCredentials.from_json_key_dict(creds_info, scope)
+      creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         client = gspread.authorize(creds)
         doc = client.open("40기 마스터 파일")
     except Exception as e:
