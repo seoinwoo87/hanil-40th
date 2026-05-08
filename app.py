@@ -1,6 +1,4 @@
 import streamlit as st
-st.write("### 🚨 현재 시간: 2024-05-22 15:00 수정본 적용됨")
-import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -17,7 +15,6 @@ st.markdown("""
     .stMetric { background: white; border: 1px solid #E2E8F0; padding: 15px !important; border-radius: 12px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     .timeline-card { background: white; border: 1px solid #E2E8F0; border-radius: 15px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-left: 6px solid #2563EB; }
     .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #EFF6FF; color: #1D4ED8; margin-bottom: 10px; }
-    .ai-container { background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border: 1px solid #BAE6FD; border-radius: 12px; padding: 20px; margin-top: 15px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -57,7 +54,7 @@ df_scores, df_mock, df_ref, df_act = load_all_data()
 
 # 3. 사이드바 및 필터
 if df_scores.empty:
-    st.error("데이터를 불러오지 못했습니다. 시트 설정(탭 이름, 권한)을 확인해주세요.")
+    st.error("데이터를 불러오지 못했습니다. Secrets 설정이나 구글 시트 권한을 확인해주세요.")
     st.stop()
 
 with st.sidebar:
@@ -72,7 +69,7 @@ with st.sidebar:
 
 st.header(f"📊 {sel_student} 리포트")
 
-# 4. 내신 성적 (과목명 잘림 해결 버전)
+# 4. 내신 성적 (과목명 가독성 개선)
 if menu == "📈 내신 성적":
     t1, t2 = st.tabs(["📊 시험별 상세", "📈 성적 추이"])
     my_s = df_scores[(df_scores['식별'] == sel_student) & (df_scores['학기'] == sel_term)]
@@ -88,7 +85,6 @@ if menu == "📈 내신 성적":
             else:
                 filtered['점수'] = pd.to_numeric(filtered['점수'], errors='coerce')
                 fig = px.bar(filtered, x='과목', y='점수', text='점수', color='점수', color_continuous_scale='Blues')
-                # 과목명 잘림 방지: 하단 여백 추가 및 45도 회전
                 fig.update_layout(margin=dict(b=100), xaxis=dict(tickangle=-45, title=""), yaxis=dict(range=[0, 105], title="원점수"))
                 st.plotly_chart(fig, use_container_width=True)
         else: st.info("데이터가 없습니다.")
@@ -108,7 +104,6 @@ elif menu == "🎯 모의고사 분석":
         latest = my_m.iloc[-1]
         st.subheader(f"🎯 최근 시험: {latest['시험명']}")
         
-        # 과목별 3단 정보 박스 함수
         def score_row(label, subj):
             st.markdown(f"**{label}**")
             c1, c2, c3 = st.columns(3)
@@ -120,13 +115,11 @@ elif menu == "🎯 모의고사 분석":
         score_row("📘 국어", "국어")
         score_row("📐 수학", "수학")
         
-        # 영어 및 탐구
         ec1, ec2 = st.columns(2)
         ec1.metric("🔤 영어 등급", f"{latest.get('영어_등급','-')}등급")
         t_kind = "사탐" if pd.notnull(latest.get('사회탐구_등급')) and latest.get('사회탐구_등급') != "" else "과탐"
         ec2.metric(f"🧪 {t_kind} 등급", f"{latest.get(f'{t_kind}1_등급', latest.get(f'{t_kind}탐구_등급','-'))}등급")
         
-        # 백분위 추이 그래프
         st.subheader("📈 백분위 추이")
         for col in my_m.columns:
             if '백분위' in col: my_m[col] = pd.to_numeric(my_m[col], errors='coerce')
@@ -135,7 +128,7 @@ elif menu == "🎯 모의고사 분석":
         st.plotly_chart(fig_m, use_container_width=True)
     else: st.info("모의고사 데이터가 없습니다.")
 
-# 6. 성찰 리포트 (전체 복구)
+# 6. 성찰 리포트
 elif menu == "🧠 성찰 리포트":
     my_r = df_ref[df_ref['학번'] == sel_num].copy()
     if not my_r.empty:
@@ -149,15 +142,9 @@ elif menu == "🧠 성찰 리포트":
                 st.markdown(f"""<div style="background:white; border-left:5px solid #3B82F6; padding:15px; margin-bottom:10px; border-radius:5px; box-shadow:0 1px 3px rgba(0,0,0,0.1);">
                     <b>{k}</b><br>{v}</div>""", unsafe_allow_html=True)
             idx += 1
-        
-        if st.button("🤖 AI 맞춤형 피드백 생성"):
-            with st.spinner("AI 분석 중..."):
-                context = "\n".join([f"{k}: {v}" for k, v in row.items() if len(str(v)) > 5 and k not in ['학번','타임스탬프']])
-                res = model.generate_content(f"상담교사로서 다음 성찰에 피드백을 줘:\n{context}")
-                st.markdown(f'<div class="ai-container"><b>🤖 AI 피드백</b><br>{res.text}</div>', unsafe_allow_html=True)
-    else: st.info("성찰 기록이 없습니다.")
+    else: st.info("기록이 없습니다.")
 
-# 7. 누적 비교과 (전체 복구)
+# 7. 누적 비교과
 elif menu == "🏆 누적 비교과":
     st.subheader("🏆 누적 활동 타임라인")
     my_act = df_act[df_act['학번'] == sel_num].copy()
@@ -180,5 +167,5 @@ elif menu == "🏆 누적 비교과":
             """, unsafe_allow_html=True)
             if st.button(f"🪄 생기부 문구 생성 ({i})"):
                 with st.spinner("작성 중..."):
-                    p = f"교사 관점에서 생기부용 문구 작성(~함 체):\n내용: {row.get('핵심 활동 내용','')}\n변화: {row.get('결과 및 배우고 느낀 점','')}"
+                    p = f"교사 관점에서 생기부용 요약 (~함 체): {row.get('핵심 활동 내용','')}"
                     st.info(model.generate_content(p).text)
