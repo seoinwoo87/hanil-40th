@@ -47,19 +47,23 @@ def load_all_data():
         client = gspread.authorize(creds)
         doc = client.open("40기 마스터 파일")
         
-        def get_df(sheet_name):
-            try:
-                sh = doc.worksheet(sheet_name)
-                data = sh.get_all_values()
-                df = pd.DataFrame(data[1:], columns=data[0])
-                # 학번/성명 정제 및 식별값 생성
-                name_col = '성명' if '성명' in df.columns else '이름'
-                if '학번' in df.columns and name_col in df.columns:
-                    df['학번'] = df['학번'].astype(str).str.replace('.0', '', regex=False).str.strip()
-                    df['성명_정제'] = df[name_col].astype(str).str.strip()
-                    df['식별'] = df['학번'] + " " + df['성명_정제']
-                return df
-            except: return pd.DataFrame()
+        ddef get_df(sheet_name):
+    try:
+        sh = doc.worksheet(sheet_name)
+        data = sh.get_all_values()
+        df = pd.DataFrame(data[1:], columns=data[0])
+        
+        # 학번 열이 있다면, 공백 제거하고 무조건 문자열로 변환
+        if '학번' in df.columns:
+            df['학번'] = df['학번'].astype(str).str.split('.').str[0].str.strip()
+            
+        # 성명/이름 열 처리
+        name_col = '성명' if '성명' in df.columns else '이름'
+        if '학번' in df.columns and name_col in df.columns:
+            df['성명_정제'] = df[name_col].astype(str).str.strip()
+            df['식별'] = df['학번'] + " " + df['성명_정제']
+        return df
+    except: return pd.DataFrame()
 
         return get_df("31_내신"), get_df("21_모의고사"), get_df("51_시험복기"), get_df("61_비교과")
     except Exception as e:
