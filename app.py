@@ -185,69 +185,70 @@ elif menu == "성찰 리포트":
     else: st.info("작성된 성찰 리포트가 없습니다.")
 
 # ==========================================
-# 7. 비교과 타임라인 섹션 (선생님 시트 양식 맞춤형)
+# 7. 비교과 타임라인 (데이터 형식 강제 통합 버전)
 # ==========================================
 elif menu == "비교과 타임라인":
     st.subheader("🏆 누적 비교과 활동")
     
     if df_activity.empty:
-        st.warning("61_비교과 시트에서 데이터를 불러올 수 없습니다. 시트 이름을 확인해주세요.")
+        st.error("🚨 '61_비교과' 시트에서 데이터를 하나도 읽어오지 못했습니다. 시트 이름을 확인해주세요.")
     else:
-        # 현재 선택된 학생 데이터 추출
-        my_act = df_activity[df_activity['식별'] == selected_student].copy()
+        # [핵심 수정] 비교과 시트의 학번 형식을 내신 데이터와 강제로 맞춥니다.
+        df_activity['학번_체크'] = df_activity['학번'].astype(str).str.replace('.0', '', regex=False).str.strip()
+        
+        # 선택된 학생의 학번만 추출 (예: "1514 심승민" -> "1514")
+        target_student_num = selected_student.split(" ")[0]
+        
+        # 학번으로만 필터링 (가장 확실한 방법)
+        my_act = df_activity[df_activity['학번_체크'] == target_student_num].copy()
         
         if my_act.empty:
-            st.info(f"{selected_student} 학생의 누적된 활동 기록이 없습니다.")
-            with st.expander("데이터 연결 상태 확인 (문제 해결용)"):
-                st.write("1. 현재 선택된 학생:", selected_student)
-                st.write("2. 시트의 실제 열 목록:", df_activity.columns.tolist())
+            st.warning(f"🔎 {selected_student} 학생의 학번({target_student_num})과 일치하는 기록이 없습니다.")
+            # 진단용 출력
+            with st.expander("🛠️ 데이터가 왜 안 보이나요? (진단 클릭)"):
+                st.write("1. 내 앱이 찾는 학번:", f"[{target_student_num}]")
                 if not df_activity.empty:
-                    st.write("3. 시트 첫 행 식별값 예시:", df_activity['식별'].iloc[0])
+                    st.write("2. 시트에 실제 저장된 학번 예시:", f"[{df_activity['학번_체크'].iloc[0]}]")
+                st.info("두 번호의 모양이 다르면 시트에서 학번을 '일반 텍스트'로 수정해야 합니다.")
         else:
-            # 날짜 순 정렬
-            my_act = my_act.sort_values(by='활동 일자', ascending=False)
-            
+            # 날짜순 정렬 (에러 방지를 위해 에러 무시 설정)
+            try:
+                my_act = my_act.sort_values(by='활동 일자', ascending=False)
+            except:
+                pass
+
             st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
             for idx, row in my_act.iterrows():
-                # 선생님이 보내주신 시트 열 이름으로 정확히 매칭
-                date = row.get('활동 일자', '-')
-                kind = row.get('활동의 성격', '-')
-                topic = row.get('활동 주제', '주제 없음')
-                motive = row.get('활동 동기(왜 시작했나요)', '') # 추가된 열
-                content = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
-                feeling = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
-                ability = row.get('핵심 역량 선택(최대 2개 선택)', '')
-                subject = row.get('연계 가능 교과(선택)', '') # 추가된 열
+                # 열 이름을 못 찾아도 멈추지 않게 기본값 처리
+                d = row.get('활동 일자', '-')
+                k = row.get('활동의 성격', '-')
+                t = row.get('활동 주제', '제목 없음')
+                m = row.get('활동 동기(왜 시작했나요)', '')
+                c = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
+                f = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
+                a = row.get('핵심 역량 선택(최대 2개 선택)', '')
+                s = row.get('연계 가능 교과(선택)', '')
 
                 st.markdown(f"""
                 <div class="timeline-item">
                     <div class="timeline-node"></div>
                     <div class="timeline-card">
-                        <span style="color:#64748B; font-size:0.9rem;">📅 {date} | {kind} | {subject}</span>
-                        <div style="font-size:1.2rem; font-weight:800; margin:8px 0; color:#1E40AF;">{topic}</div>
-                        <div style="margin-bottom:10px;"><span class="badge">#{ability}</span></div>
-                        <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.95rem; line-height:1.6; border: 1px solid #E2E8F0;">
-                            <p style="margin-bottom:8px;"><b>💡 동기:</b> {motive}</p>
-                            <p style="margin-bottom:8px;"><b>📝 핵심 활동:</b><br>{content}</p>
-                            <p style="margin:0;"><b>🌱 변화와 성장:</b><br>{feeling}</p>
+                        <span style="color:#64748B; font-size:0.85rem;">📅 {d} | {k} | {s}</span>
+                        <div style="font-size:1.15rem; font-weight:800; margin:8px 0; color:#1E40AF;">{t}</div>
+                        <div style="margin-bottom:10px;"><span class="badge">#{a}</span></div>
+                        <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.92rem; line-height:1.6; border: 1px solid #E2E8F0;">
+                            <div style="margin-bottom:8px;"><b>💡 동기:</b> {m}</div>
+                            <div style="margin-bottom:8px;"><b>📝 활동 내용:</b><br>{c}</div>
+                            <div style="margin:0;"><b>🌱 변화와 성장:</b><br>{f}</div>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # AI 생기부 초안 버튼 (내용 보강)
-                if st.button(f"🪄 AI 생기부 초안 생성 (활동: {topic[:10]}...)", key=f"btn_{idx}"):
-                    with st.spinner("문구를 다듬고 있습니다..."):
-                        p = f"""
-                        한일고등학교 교사로서 학생의 생활기록부 '진로활동' 또는 '자율활동' 문구를 작성해줘.
-                        주어는 생략하고 관찰된 행동과 변화 위주로 '~함'체로 작성할 것.
-                        
-                        활동 주제: {topic}
-                        활동 동기: {motive}
-                        핵심 내용: {content}
-                        결과 및 변화: {feeling}
-                        핵심 역량: {ability}
-                        """
-                        res = model.generate_content(p)
-                        st.markdown(f'<div class="ai-container"><b>📝 AI 추천 문구</b><br>{res.text}</div>', unsafe_allow_html=True)
+                # 버튼 고유 ID 부여로 충돌 방지
+                if st.button(f"🪄 AI 초안 생성", key=f"ai_btn_{idx}"):
+                    with st.spinner("AI가 분석 중입니다..."):
+                        prompt = f"한일고 생기부 전문가로서 다음 활동을 '~함'체로 요약해줘.\n주제: {t}\n내용: {c}\n변화: {f}"
+                        res = model.generate_content(prompt)
+                        st.info(res.text)
             st.markdown('</div>', unsafe_allow_html=True)
