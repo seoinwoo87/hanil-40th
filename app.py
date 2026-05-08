@@ -185,55 +185,69 @@ elif menu == "성찰 리포트":
     else: st.info("작성된 성찰 리포트가 없습니다.")
 
 # ==========================================
-# 7. 비교과 타임라인 섹션 (완전 복구)
+# 7. 비교과 타임라인 섹션 (선생님 시트 양식 맞춤형)
 # ==========================================
 elif menu == "비교과 타임라인":
     st.subheader("🏆 누적 비교과 활동")
     
-    # 데이터가 아예 없는 경우
     if df_activity.empty:
-        st.warning("61_비교과 시트에서 데이터를 불러올 수 없습니다.")
+        st.warning("61_비교과 시트에서 데이터를 불러올 수 없습니다. 시트 이름을 확인해주세요.")
     else:
-        # 현재 선택된 학생 데이터만 추출
+        # 현재 선택된 학생 데이터 추출
         my_act = df_activity[df_activity['식별'] == selected_student].copy()
         
         if my_act.empty:
             st.info(f"{selected_student} 학생의 누적된 활동 기록이 없습니다.")
-            # 디버깅용 정보 (선생님만 확인)
-            with st.expander("데이터 연결 상태 확인"):
-                st.write("선택된 학생 식별값:", selected_student)
-                st.write("시트에서 읽은 첫 줄 식별값:", df_activity['식별'].iloc[0] if '식별' in df_activity.columns else "식별값 없음")
+            with st.expander("데이터 연결 상태 확인 (문제 해결용)"):
+                st.write("1. 현재 선택된 학생:", selected_student)
+                st.write("2. 시트의 실제 열 목록:", df_activity.columns.tolist())
+                if not df_activity.empty:
+                    st.write("3. 시트 첫 행 식별값 예시:", df_activity['식별'].iloc[0])
         else:
             # 날짜 순 정렬
             my_act = my_act.sort_values(by='활동 일자', ascending=False)
             
             st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
             for idx, row in my_act.iterrows():
-                # 열 이름이 길 수 있으므로 안전하게 가져오기
+                # 선생님이 보내주신 시트 열 이름으로 정확히 매칭
                 date = row.get('활동 일자', '-')
                 kind = row.get('활동의 성격', '-')
                 topic = row.get('활동 주제', '주제 없음')
-                cap = row.get('핵심 역량 선택(최대 2개 선택)', '')
-                cont = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
-                ref = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
+                motive = row.get('활동 동기(왜 시작했나요)', '') # 추가된 열
+                content = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
+                feeling = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
+                ability = row.get('핵심 역량 선택(최대 2개 선택)', '')
+                subject = row.get('연계 가능 교과(선택)', '') # 추가된 열
 
                 st.markdown(f"""
                 <div class="timeline-item">
                     <div class="timeline-node"></div>
                     <div class="timeline-card">
-                        <span style="color:#64748B; font-size:0.9rem;">📅 {date} | {kind}</span>
-                        <div style="font-size:1.15rem; font-weight:800; margin:8px 0; color:#1E40AF;">{topic}</div>
-                        <div style="margin-bottom:10px;"><span class="badge">#{cap}</span></div>
-                        <div style="background:#F8FAFC; padding:15px; border-radius:10px; font-size:0.92rem; line-height:1.6;">
-                            <b>활동 상세:</b> {cont}<br><br>
-                            <b>성찰 및 변화:</b> {ref}
+                        <span style="color:#64748B; font-size:0.9rem;">📅 {date} | {kind} | {subject}</span>
+                        <div style="font-size:1.2rem; font-weight:800; margin:8px 0; color:#1E40AF;">{topic}</div>
+                        <div style="margin-bottom:10px;"><span class="badge">#{ability}</span></div>
+                        <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.95rem; line-height:1.6; border: 1px solid #E2E8F0;">
+                            <p style="margin-bottom:8px;"><b>💡 동기:</b> {motive}</p>
+                            <p style="margin-bottom:8px;"><b>📝 핵심 활동:</b><br>{content}</p>
+                            <p style="margin:0;"><b>🌱 변화와 성장:</b><br>{feeling}</p>
                         </div>
                     </div>
                 </div>
                 """, unsafe_allow_html=True)
                 
-                # 생기부 초안 버튼
-                if st.button(f"🪄 생기부 초안 생성 (활동 {idx})"):
-                    p = f"다음 활동 내용을 바탕으로 생활기록부 세부능력 및 특기사항 초안을 교사 관점에서 작성해줘. 주어는 생략하고 '~함'체로 작성할 것.\n주제: {topic}\n내용: {cont}\n성찰: {ref}"
-                    st.markdown(f'<div class="ai-container"><b>📝 AI 추천 문구</b><br>{model.generate_content(p).text}</div>', unsafe_allow_html=True)
+                # AI 생기부 초안 버튼 (내용 보강)
+                if st.button(f"🪄 AI 생기부 초안 생성 (활동: {topic[:10]}...)", key=f"btn_{idx}"):
+                    with st.spinner("문구를 다듬고 있습니다..."):
+                        p = f"""
+                        한일고등학교 교사로서 학생의 생활기록부 '진로활동' 또는 '자율활동' 문구를 작성해줘.
+                        주어는 생략하고 관찰된 행동과 변화 위주로 '~함'체로 작성할 것.
+                        
+                        활동 주제: {topic}
+                        활동 동기: {motive}
+                        핵심 내용: {content}
+                        결과 및 변화: {feeling}
+                        핵심 역량: {ability}
+                        """
+                        res = model.generate_content(p)
+                        st.markdown(f'<div class="ai-container"><b>📝 AI 추천 문구</b><br>{res.text}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
