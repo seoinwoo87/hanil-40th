@@ -83,7 +83,22 @@ def load_all_data():
             return df
         except: return pd.DataFrame()
 
-    return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
+return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
+
+# [중요] 여기서부터 벽에 딱 붙여서 작성해야 합니다! (들여쓰기 없음)
+df_scores, df_mock, df_reflection, df_activity = load_all_data()
+
+# 에러가 나더라도 앱이 멈추지 않게 안전장치 추가
+if df_scores is None or df_scores.empty:
+    st.warning("⚠️ 데이터를 불러오는 중입니다. 잠시만 기다려주시거나 구글 시트 공유 설정을 확인해주세요.")
+    st.stop()
+
+# 숫자형 변환 로직
+for df in [df_scores, df_mock]:
+    if not df.empty:
+        for col in df.columns:
+            if any(k in col for k in ['점수', '등급', '백분위', '표점']):
+                df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # ==========================================
 # 4. 사이드바 및 필터
