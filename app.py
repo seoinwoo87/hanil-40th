@@ -83,7 +83,7 @@ def load_all_data():
             return df
         except: return pd.DataFrame()
 
-return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
+    return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
 
 # [중요] 여기서부터 벽에 딱 붙여서 작성해야 합니다! (들여쓰기 없음)
 df_scores, df_mock, df_reflection, df_activity = load_all_data()
