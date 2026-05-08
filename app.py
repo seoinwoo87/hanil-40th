@@ -67,39 +67,34 @@ html, body, [class*="css"] {
 """, unsafe_allow_html=True)
 
 # ==========================================
-# 2. 보안 설정 (선생님 전용 로그인)
+# 2. 보안 설정 (비밀번호 로그인)
 # ==========================================
 def check_password():
-    """비밀번호가 맞으면 True를 반환합니다."""
     def password_entered():
-        # st.secrets에 admin_password가 없다면 기본값 'hanil40'을 사용합니다.
         correct_password = st.secrets.get("admin_password", "hanil40")
         if st.session_state["password"] == correct_password:
             st.session_state["password_correct"] = True
-            del st.session_state["password"]  # 보안을 위해 세션에서 비밀번호 삭제
+            del st.session_state["password"]
         else:
             st.session_state["password_correct"] = False
 
     if "password_correct" not in st.session_state:
-        # 로그인 화면
         st.markdown("### 🔒 한일고 40기 상담 시스템 접속")
         st.text_input("선생님 비밀번호를 입력해주세요.", type="password", on_change=password_entered, key="password")
         return False
     elif not st.session_state["password_correct"]:
-        # 비밀번호 틀렸을 때
         st.markdown("### 🔒 한일고 40기 상담 시스템 접속")
         st.text_input("비밀번호가 틀렸습니다. 다시 입력해주세요.", type="password", on_change=password_entered, key="password")
         st.error("😕 권한이 없습니다.")
         return False
     else:
-        # 로그인 성공
         return True
 
 if not check_password():
-    st.stop() # 로그인 전까지 아래 코드 실행 안함
+    st.stop()
 
 # ==========================================
-# 3. 데이터 로드 및 숫자 추출 유틸리티
+# 3. 유틸리티 함수
 # ==========================================
 def safe_numeric(val):
     if pd.isna(val) or val is None: return 0.0
@@ -143,11 +138,13 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act = load_all_data()
 
-# AI 모델 자동 설정
+# AI 모델 자동 설정 (404 방지)
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     m_list = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    t_m = 'models/gemini-1.5-flash' if 'models/gemini-1.5-flash' in m_list else ('models/gemini-pro' if 'models/gemini-pro' in m_list else m_list[0])
+    if 'models/gemini-1.5-flash' in m_list: t_m = 'models/gemini-1.5-flash'
+    elif 'models/gemini-pro' in m_list: t_m = 'models/gemini-pro'
+    else: t_m = m_list[0]
     ai_model = genai.GenerativeModel(t_m)
 except:
     ai_model = None
@@ -155,7 +152,6 @@ except:
 # ==========================================
 # 4. 새로고침 시 상태 유지 (Query Params)
 # ==========================================
-# URL에서 현재 파라미터를 읽어옵니다.
 query_params = st.query_params
 
 # ==========================================
@@ -163,12 +159,9 @@ query_params = st.query_params
 # ==========================================
 with st.sidebar:
     st.title("🏫 한일고 40기 상담실")
-    
-    # 학기 선택
     terms = sorted(df_scores['학기'].unique(), reverse=True)
     sel_term = st.selectbox("📅 학기 선택", terms)
     
-    # 학생 선택 (상태 유지 반영)
     students = sorted(df_scores[df_scores['학기'] == sel_term]['식별'].unique())
     default_student_idx = 0
     if "student" in query_params and query_params["student"] in students:
@@ -176,13 +169,9 @@ with st.sidebar:
     
     sel_student = st.selectbox("👤 학생 선택", students, index=default_student_idx)
     sel_num = sel_student.split(" ")[0]
-    
-    # URL 파라미터 업데이트
     st.query_params["student"] = sel_student
     
     st.markdown("---")
-    
-    # 메뉴 선택 (상태 유지 반영)
     menu_list = ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인"]
     default_menu_idx = 0
     if "menu" in query_params and query_params["menu"] in menu_list:
@@ -194,7 +183,7 @@ with st.sidebar:
 st.header(f"📊 {sel_student} 분석 리포트")
 
 # ==========================================
-# 6. 내신 분석
+# 6. 내신 분석 (백분위 자동 계산)
 # ==========================================
 if menu == "📈 내신 분석":
     t1, t2 = st.tabs(["📊 시험별 상세", "📈 성적 추이"])
@@ -221,13 +210,12 @@ if menu == "📈 내신 분석":
                     plot_data.append({'과목': row['과목'], '점수': my_score, '중위값': median_val, '백분위': round(calc_perc, 1)})
                 pdf = pd.DataFrame(plot_data)
                 fig = px.bar(pdf, x='과목', y='점수', color='과목', text='점수', color_discrete_sequence=px.colors.qualitative.Pastel)
-                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['중위값'], name="학년 중위값", mode='lines+markers', line=dict(color='black', dash='dash', width=2)))
-                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['백분위'], name="계산 백분위(%)", yaxis="y2", mode='lines+markers+text', 
+                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['중위값'], name="중위값", mode='lines+markers', line=dict(color='black', dash='dash')))
+                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['백분위'], name="백분위(%)", yaxis="y2", mode='lines+markers+text', 
                                          text=pdf['백분위'].apply(lambda x: f"{int(x)}%" if x > 0 else ""), 
                                          line=dict(color='red', width=3)))
-                fig.update_layout(xaxis=dict(tickangle=-45, tickfont=dict(size=14, color='black')), yaxis=dict(title="원점수", range=[0, 105]), yaxis2=dict(title="백분위(%)", overlaying="y", side="right", range=[0, 105]), margin=dict(b=120), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1))
+                fig.update_layout(xaxis=dict(tickangle=-45), yaxis=dict(range=[0, 105]), yaxis2=dict(overlaying="y", side="right", range=[0, 105]), margin=dict(b=120))
                 st.plotly_chart(fig, use_container_width=True)
-        else: st.info("해당 시험 데이터가 없습니다.")
 
 # ==========================================
 # 7. 모의고사 분석
@@ -251,7 +239,6 @@ elif menu == "🎯 모의고사 분석":
             summary.append({"과목": s_name, "표준점수": get_flex_val(latest, s_keys, ['표준점수', '표점']), "백분위": f"{get_flex_val(latest, s_keys, ['백분위', '백분'])}%", "등급": get_flex_val(latest, s_keys, ['등급'])})
         st.table(pd.DataFrame(summary))
         st.markdown("---")
-        st.subheader("📈 백분위 변화 추이")
         p_cols = [c for c in my_m.columns if '백분' in c]
         if p_cols:
             plot_m = my_m[['시험명'] + p_cols].copy()
@@ -260,7 +247,6 @@ elif menu == "🎯 모의고사 분석":
             st.plotly_chart(px.line(melted_m, x='시험명', y='백분위', color='과목', markers=True).update_layout(yaxis=dict(range=[0, 105])), use_container_width=True)
         st.subheader("📝 전체 모의고사 누적 기록")
         st.dataframe(my_m.drop(columns=['학번', '식별', '학생명'], errors='ignore'), use_container_width=True)
-    else: st.info("모의고사 기록이 없습니다.")
 
 # ==========================================
 # 8. 성찰 리포트
@@ -282,50 +268,51 @@ elif menu == "🧠 성찰 리포트":
                 with st.spinner("AI 분석 중..."):
                     try:
                         clean_data = {str(k): str(v) for k, v in row.items() if len(str(v)) > 5 and k not in ['학번', '타임스탬프']}
-                        res = ai_model.generate_content(f"한일고 상담교사의 관점에서 다음 성찰 내용을 분석하고 조언해줘: {str(clean_data)}")
+                        res = ai_model.generate_content(f"한일고 상담교사의 관점에서 조언해줘: {str(clean_data)}")
                         st.markdown(f"""<div class="ai-container"><b>🤖 AI 상담 조언</b><br><br>{res.text}</div>""", unsafe_allow_html=True)
                     except Exception as e: st.error(f"AI 오류: {e}")
-            else: st.warning("AI 모델 설정 필요.")
-    else: st.info("성찰 기록이 없습니다.")
 
 # ==========================================
-# 9. 비교과 타임라인 (세분화 필터링 적용)
+# 9. 비교과 타임라인 (6대 역량 고정 통계 적용)
 # ==========================================
 elif menu == "🏆 비교과 타임라인":
     my_act = df_act[df_act['학번'] == sel_num].copy()
     
     if not my_act.empty:
-        # 열 자동 탐색
         col_type = next((c for c in my_act.columns if '성격' in c), None)
         col_comp = next((c for c in my_act.columns if '역량' in c), None)
         
-        # [역량 통계]
-        if col_comp:
-            st.subheader("📊 핵심역량별 활동 분포")
-            counts = my_act[col_comp].value_counts()
-            s_cols = st.columns(len(counts) if len(counts) > 0 else 1)
-            for i, (name, count) in enumerate(counts.items()):
-                with s_cols[i % len(s_cols)]: st.markdown(f"""<div class="stat-box"><small style="color:#64748B;">{name}</small><br><b style="font-size:1.5rem; color:#2563EB;">{count}건</b></div>""", unsafe_allow_html=True)
-            st.markdown("---")
+        # [신규 업데이트: 6대 핵심 역량 고정 대시보드]
+        st.subheader("📊 핵심역량별 활동 분포")
+        comp_standards = ["탐구력/지식정보처리", "창의적 사고", "비판적 사고", "자기주도성/자기관리", "협력적 소통", "공동체 의식/윤리"]
         
-        # [세분화된 필터링]
+        # 6개의 칸을 만듭니다.
+        s_cols = st.columns(6)
+        for i, comp_name in enumerate(comp_standards):
+            # 시트의 역량 열에서 해당 단어가 포함된 행의 개수를 셉니다.
+            count = my_act[col_comp].str.contains(comp_name, na=False).sum() if col_comp else 0
+            with s_cols[i]:
+                st.markdown(f"""<div class="stat-box">
+<small style="color:#64748B; font-size:0.75rem;">{comp_name}</small><br>
+<b style="font-size:1.4rem; color:#2563EB;">{count}건</b>
+</div>""", unsafe_allow_html=True)
+        st.markdown("---")
+        
+        # [필터링 섹션]
         st.subheader("🔍 활동 맞춤 필터")
         f1, f2 = st.columns(2)
         filtered_act = my_act.copy()
         
         with f1:
-            # 활동 성격 카테고리 (선생님 요청 사항)
             type_options = ["전체", "자율 활동", "진로 활동", "독서 활동", "문헌 탐구 활동", "협력 토론 활동", "실증 탐구 활동", "비평 성찰 활동", "발표 공유 활동", "융합 탐구 활동", "교사 개별 상담"]
             sel_type = st.selectbox("활동 성격별 필터", type_options)
-            if sel_type != "전체":
-                # 시트에 여러 개가 적혀 있을 수 있으므로 contains 사용
+            if sel_type != "전체" and col_type:
                 filtered_act = filtered_act[filtered_act[col_type].str.contains(sel_type, na=False)]
                 
         with f2:
-            # 핵심 역량 카테고리 (선생님 요청 사항)
-            comp_options = ["전체", "탐구력/지식정보처리", "창의적 사고", "비판적 사고", "자기주도성/자기관리", "협력적 소통", "공동체 의식/윤리"]
+            comp_options = ["전체"] + comp_standards
             sel_comp = st.selectbox("핵심 역량별 필터", comp_options)
-            if sel_comp != "전체":
+            if sel_comp != "전체" and col_comp:
                 filtered_act = filtered_act[filtered_act[col_comp].str.contains(sel_comp, na=False)]
         
         st.write(f"🔍 검색 결과: 총 **{len(filtered_act)}**건")
@@ -343,10 +330,10 @@ elif menu == "🏆 비교과 타임라인":
 </div>
 </div>""", unsafe_allow_html=True)
             
-            if st.button(f"🪄 AI 생기부 초안 생성 ({i})"):
+            if st.button(f"🪄 AI 생기부 초안 생성 (기록번호: {i})"):
                 if ai_model:
                     with st.spinner("작성 중..."):
-                        p = f"활동기록을 바탕으로 생기부 문구를 작성해줘(~함 체): {row.get('핵심 활동 내용', '')}"
+                        p = f"다음 활동으로 생기부 문구 작성(~함 체): {row.get('핵심 활동 내용', '')}"
                         try: st.info(ai_model.generate_content(p).text)
                         except Exception as e: st.error(f"AI 오류: {e}")
     else: st.info("기록된 활동이 없습니다.")
