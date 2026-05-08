@@ -184,23 +184,43 @@ elif view_mode == "🧠 성찰 리포트":
                 st.markdown(f"""<div class="ai-container"><b>🤖 AI 전담교사의 분석 리포트</b><br>{model.generate_content(prompt).text}</div>""", unsafe_allow_html=True)
 
 # ==========================================
-# 8. 비교과 타임라인
+# 8. 비교과 타임라인 (디버깅 모드 추가)
 # ==========================================
 elif view_mode == "🏆 비교과 타임라인":
-    if not df_activity.empty and '식별' in df_activity.columns:
+    if df_activity.empty:
+        st.error("⚠️ 비교과 데이터(61_비교과 탭)를 전혀 불러오지 못했습니다. 탭 이름을 확인해주세요.")
+    else:
+        # 데이터가 있는지 확인하기 위해 상위 3개만 살짝 찍어보기 (나중에 지우셔도 됩니다)
+        # st.write("불러온 데이터 미리보기:", df_activity.head(3)) 
+
+        # 필터링 시작
         my_act = df_activity[df_activity['식별'] == selected_student_id].sort_values(by='활동 일자', ascending=False)
-        if not my_act.empty:
+        
+        if my_act.empty:
+            st.warning(f"🔔 {selected_student_id} 학생의 기록이 '61_비교과' 시트에 없습니다.")
+            st.info("""
+            **확인해보세요:**
+            1. 시트의 '학번' 열에 **1514**가 정확히 적혀 있나요?
+            2. 시트의 '성명' 혹은 '이름' 열에 **심승민**이 정확히 적혀 있나요?
+            3. 혹시 학번에 소수점(1514.0)이 붙어 있지는 않나요?
+            """)
+        else:
             st.markdown('<div class="timeline-container">', unsafe_allow_html=True)
             for idx, row in my_act.iterrows():
+                # 열 이름이 길어서 생기는 문제를 방지하기 위해 안전하게 가져오기
+                act_date = row.get('활동 일자', '날짜 없음')
+                act_type = row.get('활동의 성격', '구분 없음')
+                act_title = row.get('활동 주제', '주제 없음')
+                act_cap = row.get('핵심 역량 선택(최대 2개 선택)', '')
+                act_content = row.get('핵심 활동 내용(무엇을 어떻게 했나요)', '')
+                act_ref = row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)', '')
+
                 st.markdown(f"""<div class="timeline-item"><div class="timeline-node"></div><div class="timeline-card">
-                    <span style="color:#64748B; font-size:0.9rem;">📅 {row.get('활동 일자','')} | {row.get('활동의 성격','')}</span>
-                    <div style="font-size:1.2rem; font-weight:800; margin:10px 0;">{row.get('활동 주제','')}</div>
-                    <div style="margin-bottom:10px;"><span class="badge">#{row.get('핵심 역량 선택(최대 2개 선택)','')}</span></div>
+                    <span style="color:#64748B; font-size:0.9rem;">📅 {act_date} | {act_type}</span>
+                    <div style="font-size:1.2rem; font-weight:800; margin:10px 0;">{act_title}</div>
+                    <div style="margin-bottom:10px;"><span class="badge">#{act_cap}</span></div>
                     <div style="background:#F8FAFC; padding:15px; border-radius:10px; font-size:0.95rem;">
-                        <b>내용:</b> {row.get('핵심 활동 내용(무엇을 어떻게 했나요)','')}<br>
-                        <b>성찰:</b> {row.get('결과 및 배우고 느낀 점(어떤 변화가 있었나요?)','')}
+                        <b>내용:</b> {act_content}<br>
+                        <b>성찰:</b> {act_ref}
                     </div></div></div>""", unsafe_allow_html=True)
-                if st.button(f"🤖 AI 생기부 초안 생성 (기록 {idx})"):
-                    p = f"다음 활동을 바탕으로 생기부 세특 초안을 작성해줘. 주제: {row.get('활동 주제','')}, 내용: {row.get('핵심 활동 내용','')}"
-                    st.markdown(f'<div class="ai-container"><b>📝 AI 추천 생기부 초안</b><br>{model.generate_content(p).text}</div>', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
