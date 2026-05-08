@@ -51,13 +51,12 @@ def load_all_data():
     scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
     
     try:
-        # [핵심 수정] Secrets 객체를 완벽한 파이썬 딕셔너리로 강제 변환합니다.
+        # [수정] 이 아래 줄들의 맨 왼쪽 간격(들여쓰기)이 모두 일치해야 합니다!
         creds_info = dict(st.secrets["gcp_service_account"])
-      creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
+        creds = ServiceAccountCredentials.from_json_keyfile_dict(creds_info, scope)
         client = gspread.authorize(creds)
         doc = client.open("40기 마스터 파일")
     except Exception as e:
-        # 연결에 실패하면 뭉뚱그리지 않고, "정확히 뭐 때문에 실패했는지" 화면에 출력합니다.
         st.error(f"🚨 구글 시트 연결 실패 상세 원인: {e}")
         return pd.DataFrame(), pd.DataFrame(), pd.DataFrame(), pd.DataFrame()
     
@@ -85,18 +84,6 @@ def load_all_data():
         except: return pd.DataFrame()
 
     return get_safe_df("31_내신"), get_safe_df("21_모의고사"), get_safe_df("51_시험복기"), get_safe_df("61_비교과")
-
-df_scores, df_mock, df_reflection, df_activity = load_all_data()
-
-# 에러 메시지를 더 구체적으로 띄우도록 수정
-if df_scores.empty and df_mock.empty:
-    st.warning("데이터가 비어있거나 불러오기에 실패했습니다. 위 🚨상세 원인🚨을 확인해주세요.")
-    st.stop()
-
-for df in [df_scores, df_mock]:
-    for col in df.columns:
-        if any(k in col for k in ['점수', '등급', '백분위', '표점']):
-            df[col] = pd.to_numeric(df[col], errors='coerce')
 
 # ==========================================
 # 4. 사이드바 및 필터
