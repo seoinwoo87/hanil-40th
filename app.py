@@ -182,7 +182,13 @@ elif view_mode == "🧠 성찰 리포트":
                 ref_txt = "\n".join([f"Q: {k}\nA: {v}" for k, v in s_data.items() if len(str(v)) > 5 and k not in ['학번_정제', '식별', '타임스탬프']])
                 prompt = f"{selected_name} 학생의 성찰 답변입니다. 상담교사로서 따뜻한 격려와 학습 전략을 조언해줘.\n\n{ref_txt}"
                 st.markdown(f"""<div class="ai-container"><b>🤖 AI 전담교사의 분석 리포트</b><br>{model.generate_content(prompt).text}</div>""", unsafe_allow_html=True)
-
+# 이 코드를 추가해서 데이터가 어떻게 읽히는지 확인합니다.
+with st.expander("데이터 진단 도구 (클릭해서 확인)"):
+    st.write("비교과 시트 전체 행 개수:", len(df_activity))
+    st.write("비교과 시트의 열 이름들:", df_activity.columns.tolist())
+    if not df_activity.empty:
+        st.write("시트의 첫 번째 학생 식별값:", df_activity['식별'].iloc[0] if '식별' in df_activity.columns else "식별 열 없음")
+    st.write("현재 선택된 학생 식별값:", selected_student_id)
 # ==========================================
 # 8. 비교과 타임라인 (디버깅 모드 추가)
 # ==========================================
