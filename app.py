@@ -7,7 +7,9 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import re
 
+# ==========================================
 # 1. 페이지 설정 및 디자인
+# ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
 st.markdown("""
@@ -22,16 +24,23 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# 숫자를 안전하게 추출하는 함수 (백분위 0 오류 해결용)
+# [핵심 수정] 글자가 섞여 있어도 숫자만 완벽히 뽑아내는 추출기
 def safe_numeric(val):
-    if pd.isna(val) or val == '': return 0.0
+    if pd.isna(val) or val is None: return 0.0
+    val_str = str(val).strip()
+    if not val_str or val_str == '-': return 0.0
     try:
-        cleaned = re.sub(r'[^0-9.]', '', str(val))
+        cleaned = re.sub(r'[^0-9.]', '', val_str)
+        if cleaned.count('.') > 1:
+            parts = cleaned.split('.')
+            cleaned = parts[0] + '.' + ''.join(parts[1:])
         return float(cleaned) if cleaned else 0.0
     except:
         return 0.0
 
-# 2. 데이터 및 AI 로드 (캐시 적용)
+# ==========================================
+# 2. 데이터 로드 및 AI 설정
+# ==========================================
 @st.cache_resource
 def load_all_data():
     try:
@@ -47,14 +56,11 @@ def load_all_data():
                 if not data: return pd.DataFrame()
                 df = pd.DataFrame(data[1:], columns=data[0])
                 
-                # 중복 컬럼 제거 (DuplicateError 방지)
+                # 중복 컬럼 제거 (DuplicateError 완전 차단)
                 df = df.loc[:, ~df.columns.duplicated()]
                 
-                # 학번 세탁
                 if '학번' in df.columns:
                     df['학번'] = df['학번'].astype(str).str.replace(',', '').str.split('.').str[0].str.strip()
-                
-                # 학생 식별 키 생성
                 n_col = '성명' if '성명' in df.columns else '이름'
                 if '학번' in df.columns and n_col in df.columns:
                     df['학생명'] = df[n_col].astype(str).str.strip()
@@ -69,16 +75,18 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act = load_all_data()
 
-# AI 설정
+# [핵심 수정] 404 에러를 잡기 위해 구버전 SDK와 100% 호환되는 'gemini-pro'로 변경
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
+    ai_model = genai.GenerativeModel('gemini-pro')
 except:
     ai_model = None
 
+# ==========================================
 # 3. 사이드바 (필터 및 메뉴)
+# ==========================================
 if df_scores.empty:
-    st.error("데이터가 비어있습니다. 시트 이름을 확인하거나 Reboot 해주세요.")
+    st.error("데이터가 비어있습니다. 앱을 Reboot 해주시거나 구글 시트 상태를 확인해주세요.")
     st.stop()
 
 with st.sidebar:
@@ -95,11 +103,16 @@ with st.sidebar:
 
 st.header(f"📊 {sel_student} 리포트")
 
-# 4. 내신 분석 (색상 차별화 + 중위값 + 백분위 2중 축)
+# ==========================================
+# 4. 내신 분석 (0점 오류 해결 + 색상 차별화)
+# ==========================================
 if menu == "📈 내신 분석":
     t1, t2 = st.tabs(["📊 시험별 상세", "📈 성적 추이"])
     my_s_all = df_scores[(df_scores['학기'] == sel_term)].copy()
     my_s = my_s_all[my_s_all['식별'] == sel_student]
+    
+    # [핵심 수정] '원점수' 열이 있는지 확인, 없으면 '점수' 열 사용
+    score_col = '원점수' if '원점수' in my_s_all.columns else '점수'
     
     with t1:
         exam = st.selectbox("시험 선택", ["1회고사", "2회고사", "학기말"])
@@ -113,23 +126,34 @@ if menu == "📈 내신 분석":
             else:
                 plot_data = []
                 for _, row in filtered.iterrows():
-                    all_scores = pd.to_numeric(my_s_all[(my_s_all['시험'] == exam) & (my_s_all['과목'] == row['과목'])]['점수'], errors='coerce').dropna()
+                    # 중위값 안전 계산
+                    all_exam_scores = my_s_all[(my_s_all['시험'] == exam) & (my_s_all['과목'] == row['과목'])][score_col]
+                    all_scores = all_exam_scores.apply(safe_numeric).dropna()
                     median_val = all_scores.median() if not all_scores.empty else 0
+                    
+                    # 내 점수 및 백분위 안전 추출
+                    my_score = safe_numeric(row.get(score_col, 0))
+                    my_perc = safe_numeric(row.get('백분위', 0))
+                    
                     plot_data.append({
                         '과목': row['과목'], 
-                        '점수': safe_numeric(row['점수']), 
+                        '점수': my_score, 
                         '중위값': median_val, 
-                        '백분위': safe_numeric(row.get('백분위', 0))
+                        '백분위': my_perc
                     })
                 pdf = pd.DataFrame(plot_data)
 
+                # 알록달록한 막대그래프
                 fig = px.bar(pdf, x='과목', y='점수', color='과목', text='점수', color_discrete_sequence=px.colors.qualitative.Pastel)
+                
+                # 중위값 점선
                 fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['중위값'], name="학년 중위값", mode='lines+markers', line=dict(color='black', dash='dash')))
                 
-                # 백분위 이중 축 (0 이상인 경우만 텍스트 표시)
-                fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['백분위'], name="백분위(%)", yaxis="y2", mode='lines+markers+text', 
-                                         text=pdf['백분위'].apply(lambda x: f"{int(x)}%" if x > 0 else ""), 
-                                         line=dict(color='red', width=3)))
+                # 백분위 꺾은선 (값이 있을 때만 텍스트 표시)
+                if not pdf['백분위'].isnull().all():
+                    fig.add_trace(go.Scatter(x=pdf['과목'], y=pdf['백분위'], name="백분위(%)", yaxis="y2", mode='lines+markers+text', 
+                                             text=pdf['백분위'].apply(lambda x: f"{int(x)}%" if x > 0 else ""), 
+                                             line=dict(color='red', width=3)))
                 
                 fig.update_layout(
                     xaxis=dict(tickangle=-45, tickfont=dict(size=14, color='black')),
@@ -138,54 +162,74 @@ if menu == "📈 내신 분석":
                     margin=dict(b=120), legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
                 )
                 st.plotly_chart(fig, use_container_width=True)
-        else: st.info("데이터가 없습니다.")
+        else: st.info("해당 시험 데이터가 없습니다.")
     
     with t2:
         subs = sorted(my_s['과목'].unique())
         s_sub = st.selectbox("과목 선택", subs)
         trend = my_s[my_s['과목'] == s_sub].copy()
-        trend['점수'] = pd.to_numeric(trend['점수'], errors='coerce')
+        trend['점수'] = trend.get(score_col, trend.get('점수', 0)).apply(safe_numeric)
         trend['ord'] = trend['시험'].map({'1회고사':1, '2회고사':2, '학기말':3})
         st.plotly_chart(px.line(trend.sort_values('ord'), x='시험', y='점수', markers=True, text='점수'), use_container_width=True)
 
-# 5. 모의고사 분석 (표점 복구 + 백분위 추이 + 전체 누적 표)
+# ==========================================
+# 5. 모의고사 분석 (표준점수 유연 탐색기 적용)
+# ==========================================
 elif menu == "🎯 모의고사 분석":
     my_m = df_mock[df_mock['학번'] == sel_num].copy()
     if not my_m.empty:
         my_m = my_m.loc[:, ~my_m.columns.duplicated()].copy()
         latest = my_m.iloc[-1]
-        st.subheader(f"🎯 최근 모의고사 요약: {latest['시험명']}")
+        st.subheader(f"🎯 최근 모의고사 요약: {latest.get('시험명', '최근 시험')}")
         
-        subs = ["국어", "수학", "영어", "한국사", "사회탐구", "과학탐구"]
+        # [핵심 수정] 과목명이나 띄어쓰기가 조금 달라도 무조건 찾아오는 만능 함수
+        def get_flex_val(series, subj_keys, keywords):
+            for col in series.index:
+                c_clean = str(col).replace(" ", "").replace("_", "")
+                if any(s in c_clean for s in subj_keys) and any(k in c_clean for k in keywords):
+                    val = series[col]
+                    return val if pd.notna(val) and str(val).strip() != '' else '-'
+            return '-'
+
+        subj_map = {
+            "국어": ["국어"], "수학": ["수학"], "영어": ["영어"], 
+            "한국사": ["한국사", "국사"], "사회탐구": ["사회탐구", "사탐"], "과학탐구": ["과학탐구", "과탐"]
+        }
+        
         summary = []
-        for s in subs:
+        for s_name, s_keys in subj_map.items():
+            perc_val = get_flex_val(latest, s_keys, ['백분위', '백분'])
             summary.append({
-                "과목": s,
-                "표준점수": latest.get(f'{s}_표준점수', latest.get(f'{s}표준점수', '-')),
-                "백분위": f"{latest.get(f'{s}_백분위', latest.get(f'{s}백분위', '-'))}%",
-                "등급": f"{latest.get(f'{s}_등급', latest.get(f'{s}등급', '-'))}등급"
+                "과목": s_name,
+                "표준점수": get_flex_val(latest, s_keys, ['표준점수', '표점']),
+                "백분위": f"{perc_val}%" if perc_val != '-' else '-',
+                "등급": get_flex_val(latest, s_keys, ['등급'])
             })
         st.table(pd.DataFrame(summary))
         
         st.markdown("---")
         st.subheader("📈 백분위 변화 추이")
         perc_cols = [c for c in my_m.columns if '백분위' in c]
-        plot_m = my_m[['시험명'] + perc_cols].copy()
-        for c in perc_cols:
-            plot_m[c] = plot_m[c].apply(safe_numeric)
-        
-        # 중복 방지를 위한 Melt 처리
-        melted_m = plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위')
-        fig_m = px.line(melted_m, x='시험명', y='백분위', color='과목', markers=True)
-        fig_m.update_layout(yaxis=dict(title="백분위(%)", range=[0, 105]), margin=dict(b=80))
-        st.plotly_chart(fig_m, use_container_width=True)
+        if perc_cols:
+            plot_m = my_m[['시험명'] + perc_cols].copy()
+            for c in perc_cols:
+                plot_m[c] = plot_m[c].apply(safe_numeric)
+            
+            melted_m = plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위')
+            fig_m = px.line(melted_m, x='시험명', y='백분위', color='과목', markers=True)
+            fig_m.update_layout(yaxis=dict(title="백분위(%)", range=[0, 105]), margin=dict(b=80))
+            st.plotly_chart(fig_m, use_container_width=True)
+        else:
+            st.info("시트에 '백분위'라는 단어가 포함된 열을 찾을 수 없어 그래프를 그리지 못했습니다.")
 
         st.markdown("---")
         st.subheader("📝 전체 모의고사 누적 기록")
         st.dataframe(my_m.drop(columns=['학번','식별','학생명'], errors='ignore'), use_container_width=True)
     else: st.info("모의고사 기록이 없습니다.")
 
-# 6. 성찰 리포트 (AI 피드백 복구)
+# ==========================================
+# 6. 성찰 리포트
+# ==========================================
 elif menu == "🧠 성찰 리포트":
     my_r = df_ref[df_ref['학번'] == sel_num].copy()
     if not my_r.empty:
@@ -211,17 +255,18 @@ elif menu == "🧠 성찰 리포트":
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 상담 조언</b><br>{res.text}</div>', unsafe_allow_html=True)
                     except Exception as e:
                         st.error(f"AI 생성 중 오류가 발생했습니다: {e}")
-            else: st.warning("AI 설정이 필요합니다.")
+            else: st.warning("AI 설정이 필요합니다. (API Key 확인)")
     else: st.info("기록이 없습니다.")
 
-# 7. 비교과 타임라인 (역량 통계 + 필터링 + AI 요약)
+# ==========================================
+# 7. 비교과 타임라인
+# ==========================================
 elif menu == "🏆 비교과 타임라인":
     my_act = df_act[df_act['학번'] == sel_num].copy()
     if not my_act.empty:
         col_type = '활동의 성격'
         col_comp = '핵심 역량' if '핵심 역량' in my_act.columns else '핵심역량'
         
-        # [역량 통계 대시보드]
         if col_comp in my_act.columns:
             st.subheader("📊 핵심역량별 활동 분포")
             counts = my_act[col_comp].value_counts()
@@ -231,14 +276,13 @@ elif menu == "🏆 비교과 타임라인":
                     st.markdown(f'<div class="stat-box"><small>{name}</small><br><b style="font-size:1.5rem; color:#2563EB;">{count}건</b></div>', unsafe_allow_html=True)
             st.markdown("---")
         
-        # [필터링 기능]
         f1, f2 = st.columns(2)
-        with f1: sel_t = st.selectbox("활동 성격 필터", ["전체"] + sorted(my_act[col_type].unique().tolist()))
-        with f2: sel_c = st.selectbox("역량 필터", ["전체"] + sorted(my_act[col_comp].unique().tolist()))
+        with f1: sel_t = st.selectbox("활동 성격 필터", ["전체"] + sorted(my_act[col_type].unique().tolist())) if col_type in my_act.columns else st.empty()
+        with f2: sel_c = st.selectbox("역량 필터", ["전체"] + sorted(my_act[col_comp].unique().tolist())) if col_comp in my_act.columns else st.empty()
         
         filtered = my_act.copy()
-        if sel_t != "전체": filtered = filtered[filtered[col_type] == sel_t]
-        if sel_c != "전체": filtered = filtered[filtered[col_comp] == sel_c]
+        if col_type in my_act.columns and sel_t != "전체": filtered = filtered[filtered[col_type] == sel_t]
+        if col_comp in my_act.columns and sel_c != "전체": filtered = filtered[filtered[col_comp] == sel_c]
         
         st.write(f"검색 결과: {len(filtered)}건")
         
