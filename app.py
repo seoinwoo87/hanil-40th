@@ -1,4 +1,6 @@
 import streamlit as st
+st.write("### 🚨 현재 시간: 2024-05-22 15:00 수정본 적용됨")
+import streamlit as st
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
