@@ -179,6 +179,10 @@ with st.sidebar:
     st.title("🏫 상담 시스템 v2")
    # [이스터에그] 관리자님의 영혼이 담긴 서명
     st.markdown("<div style='text-align: right; font-size: 0.8rem; color: #94A3B8; margin-top: -15px; margin-bottom: 20px;'><i>✨ made by 40 admin</i></div>", unsafe_allow_html=True)
+
+    if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
+        st.cache_resource.clear()
+        st.rerun()  # 화면을 즉시 새로고침합니다
     
     sel_term = st.selectbox("📅 학기 선택", sorted(df_scores['학기'].unique(), reverse=True) if not df_scores.empty else [])
     sel_class = st.selectbox("🏘️ 학급 선택", sorted(df_scores[df_scores['학기'] == sel_term]['반'].unique()) if sel_term else [])
