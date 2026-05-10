@@ -24,7 +24,7 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄용 마법 코드 */
+    /* 🖨️ 인쇄용 마법 코드 (Ctrl+P 누를 때 작동) */
     @media print {
         [data-testid="stSidebar"] { display: none !important; }
         header { display: none !important; }
@@ -39,7 +39,7 @@ def style_centered(df):
     return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
 # ==========================================
-# 2. 보안 설정
+# 2. 보안 설정 (비밀번호)
 # ==========================================
 def check_password():
     def password_entered():
@@ -66,7 +66,7 @@ if not check_password():
     st.stop()
 
 # ==========================================
-# 3. 유틸리티 로직
+# 3. 유틸리티 로직 (계산 함수)
 # ==========================================
 def safe_numeric(val):
     if pd.isna(val) or val is None: return 0.0
@@ -102,7 +102,7 @@ def get_time_rank(row):
     return t_map.get(row.get('학기',''), 0) + e_map.get(row.get('시험',''), 0)
 
 # ==========================================
-# 4. 데이터 로드
+# 4. 데이터 로드 (구글 시트 연동)
 # ==========================================
 @st.cache_resource
 def load_all_data():
@@ -148,11 +148,15 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
 
+# [수정완료] AI 모델 에러 방지 (최신버전 안되면 구버전으로 자동 전환)
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     ai_model = genai.GenerativeModel('gemini-1.5-flash')
-except: 
-    ai_model = None
+except Exception:
+    try:
+        ai_model = genai.GenerativeModel('gemini-pro')
+    except Exception:
+        ai_model = None
 
 # ==========================================
 # 5. 사이드바 구성 및 [AI 기억장치 초기화]
@@ -280,7 +284,7 @@ if menu == "📈 내신 분석":
                 st.info("💡 Y축은 상대적 위치(백분위)이며, 점 위의 숫자는 실제 원점수입니다.")
 
 # ==========================================
-# 7. 모의고사 분석
+# 7. 모의고사 분석 (O/X 처리 및 누적 분석, AI 기억 포함)
 # ==========================================
 elif menu == "🎯 모의고사 분석":
     mt1, mt2, mt3 = st.tabs(["📉 전체 성적 추이", "🔍 단일 시험 분석", "📊 누적 취약점 분석"])
@@ -350,7 +354,7 @@ elif menu == "🎯 모의고사 분석":
                     st.markdown(f"**💡 {sel_name} 학생의 오답 목록**")
                     st.table(style_centered(wrong[safe_cols].copy()))
                     
-                    # [AI 기억 기능]
+                    # [AI 기억 기능 적용]
                     cache_key = f"mock_single_{s_ex}_{s_su}"
                     if st.button("🤖 개조식 AI 맞춤형 처방전 생성"):
                         if ai_model:
@@ -415,7 +419,7 @@ elif menu == "🎯 모의고사 분석":
                     st.markdown(f"**💡 {sel_name} 학생이 {sel_subj_cum} 과목에서 누적해서 틀린 문제들의 출제 의도 목록**")
                     st.info(", ".join(all_wrong_intents))
                     
-                    # [AI 기억 기능]
+                    # [AI 기억 기능 적용]
                     cache_key = f"mock_cum_{sel_subj_cum}"
                     if st.button("🤖 AI 유사 패턴 클러스터링 및 장기 로드맵 생성"):
                         if ai_model:
