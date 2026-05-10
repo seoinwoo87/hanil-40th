@@ -148,18 +148,37 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
 
-# [수정완료] AI 모델 에러 방지 (최신버전 안되면 구버전으로 자동 전환)
+# ==========================================
+# 5. [핵심수정] AI 모델 동적 할당 (404 에러 완벽 차단)
+# ==========================================
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
-    ai_model = genai.GenerativeModel('gemini-1.5-flash')
-except Exception:
-    try:
-        ai_model = genai.GenerativeModel('gemini-pro')
-    except Exception:
+    
+    # 1. 내 API 키로 사용할 수 있는 실제 모델 리스트를 구글 서버에서 가져옵니다.
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    
+    target_model_name = None
+    
+    # 2. 우선순위에 따라 존재하는 모델을 안전하게 매칭합니다.
+    priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro', 'models/gemini-1.0-pro']
+    for p_model in priorities:
+        if p_model in available_models:
+            target_model_name = p_model
+            break
+            
+    # 3. 위 목록에 없다면, 구글이 허락한 첫 번째 모델을 강제로 지정합니다.
+    if target_model_name is None and len(available_models) > 0:
+        target_model_name = available_models[0]
+        
+    if target_model_name:
+        ai_model = genai.GenerativeModel(target_model_name)
+    else:
         ai_model = None
+except Exception as e:
+    ai_model = None
 
 # ==========================================
-# 5. 사이드바 구성 및 [AI 기억장치 초기화]
+# 6. 사이드바 구성 및 [AI 기억장치 초기화]
 # ==========================================
 query_params = st.query_params
 
@@ -191,7 +210,7 @@ with st.sidebar:
     sel_uid = class_students[class_students['표시식별'] == sel_student]['고유번호'].iloc[0]
     sel_name = sel_student.split(" ")[1]
     
-    # [핵심] 학생이 바뀌면 AI 답변 저장소 초기화
+    # [기억장치] 학생이 바뀌면 AI 답변 저장소 초기화
     if "current_student" not in st.session_state or st.session_state["current_student"] != sel_uid:
         st.session_state["current_student"] = sel_uid
         st.session_state["ai_cache"] = {} 
@@ -205,7 +224,7 @@ with st.sidebar:
 st.header(f"📊 {sel_student} 분석 리포트")
 
 # ==========================================
-# 6. 내신 분석
+# 7. 내신 분석
 # ==========================================
 if menu == "📈 내신 분석":
     t1, t2, t3 = st.tabs(["📊 상세 성적", "📉 학기별 평점", "📈 과목군 추이"])
@@ -284,7 +303,7 @@ if menu == "📈 내신 분석":
                 st.info("💡 Y축은 상대적 위치(백분위)이며, 점 위의 숫자는 실제 원점수입니다.")
 
 # ==========================================
-# 7. 모의고사 분석 (O/X 처리 및 누적 분석, AI 기억 포함)
+# 8. 모의고사 분석 (O/X 처리 및 누적 분석, AI 기억 포함)
 # ==========================================
 elif menu == "🎯 모의고사 분석":
     mt1, mt2, mt3 = st.tabs(["📉 전체 성적 추이", "🔍 단일 시험 분석", "📊 누적 취약점 분석"])
@@ -378,6 +397,8 @@ elif menu == "🎯 모의고사 분석":
                                 try:
                                     st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt).text
                                 except Exception as e: st.error(f"오류: {e}")
+                        else:
+                            st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
                     
                     if cache_key in st.session_state["ai_cache"]:
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 개조식 학습 처방전</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
@@ -443,12 +464,14 @@ elif menu == "🎯 모의고사 분석":
                                 try:
                                     st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt_cum).text
                                 except Exception as e: st.error(f"AI 오류: {e}")
+                        else:
+                            st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
                                 
                     if cache_key in st.session_state["ai_cache"]:
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 누적 약점 정밀 보고서</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 8. 성찰 리포트 (기억 기능 추가)
+# 9. 성찰 리포트 (기억 기능 추가)
 # ==========================================
 elif menu == "🧠 성찰 리포트":
     curr_y = sel_term[:3] if sel_term else ""
@@ -478,6 +501,8 @@ elif menu == "🧠 성찰 리포트":
                     try:
                         st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt).text
                     except Exception as e: st.error(f"오류: {e}")
+            else:
+                st.warning("AI 모델을 사용할 수 없습니다.")
                     
         if cache_key in st.session_state["ai_cache"]:
             st.markdown(f'<div class="ai-container"><b>🤖 AI 상담 조언</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
@@ -485,7 +510,7 @@ elif menu == "🧠 성찰 리포트":
         st.info("성찰 기록이 없습니다.")
 
 # ==========================================
-# 9. 비교과 타임라인 (기억 기능 추가)
+# 10. 비교과 타임라인 (기억 기능 추가)
 # ==========================================
 elif menu == "🏆 비교과 타임라인":
     curr_y = sel_term[:3] if sel_term else ""
@@ -541,13 +566,15 @@ elif menu == "🏆 비교과 타임라인":
                         try:
                             st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"활동 내용: {row.get('핵심 활동 내용', '')}. 이를 바탕으로 생기부에 들어갈 문구를 개조식(~함, ~임)으로 작성해줘.").text
                         except Exception as e: st.error(f"오류: {e}")
+                else:
+                    st.warning("AI 모델을 사용할 수 없습니다.")
             if cache_key in st.session_state["ai_cache"]:
                 st.info(st.session_state["ai_cache"][cache_key])
     else: 
         st.info("활동 기록이 없습니다.")
 
 # ==========================================
-# 10. 상담 기록 작성 (학번 기반 인간 친화적 저장)
+# 11. 상담 기록 작성 (학번 기반 인간 친화적 저장)
 # ==========================================
 elif menu == "📝 상담 기록":
     uid_counsel = pd.DataFrame()
