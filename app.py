@@ -148,25 +148,18 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
 
-# ==========================================
-# 5. [핵심수정] AI 모델 동적 할당 (404 에러 완벽 차단)
-# ==========================================
+# AI 모델 동적 할당 (404 에러 완벽 차단)
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
-    
-    # 1. 내 API 키로 사용할 수 있는 실제 모델 리스트를 구글 서버에서 가져옵니다.
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    
     target_model_name = None
     
-    # 2. 우선순위에 따라 존재하는 모델을 안전하게 매칭합니다.
     priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro', 'models/gemini-1.0-pro']
     for p_model in priorities:
         if p_model in available_models:
             target_model_name = p_model
             break
             
-    # 3. 위 목록에 없다면, 구글이 허락한 첫 번째 모델을 강제로 지정합니다.
     if target_model_name is None and len(available_models) > 0:
         target_model_name = available_models[0]
         
@@ -178,12 +171,15 @@ except Exception as e:
     ai_model = None
 
 # ==========================================
-# 6. 사이드바 구성 및 [AI 기억장치 초기화]
+# 5. 사이드바 구성 (이스터에그 포함!)
 # ==========================================
 query_params = st.query_params
 
 with st.sidebar:
     st.title("🏫 상담 시스템 v2")
+   # [이스터에그] 관리자님의 영혼이 담긴 서명
+    st.markdown("<div style='text-align: right; font-size: 0.8rem; color: #94A3B8; margin-top: -15px; margin-bottom: 20px;'><i>✨ made by 40 admin</i></div>", unsafe_allow_html=True)
+    
     sel_term = st.selectbox("📅 학기 선택", sorted(df_scores['학기'].unique(), reverse=True) if not df_scores.empty else [])
     sel_class = st.selectbox("🏘️ 학급 선택", sorted(df_scores[df_scores['학기'] == sel_term]['반'].unique()) if sel_term else [])
     
@@ -224,7 +220,7 @@ with st.sidebar:
 st.header(f"📊 {sel_student} 분석 리포트")
 
 # ==========================================
-# 7. 내신 분석
+# 6. 내신 분석
 # ==========================================
 if menu == "📈 내신 분석":
     t1, t2, t3 = st.tabs(["📊 상세 성적", "📉 학기별 평점", "📈 과목군 추이"])
@@ -303,7 +299,7 @@ if menu == "📈 내신 분석":
                 st.info("💡 Y축은 상대적 위치(백분위)이며, 점 위의 숫자는 실제 원점수입니다.")
 
 # ==========================================
-# 8. 모의고사 분석 (O/X 처리 및 누적 분석, AI 기억 포함)
+# 7. 모의고사 분석
 # ==========================================
 elif menu == "🎯 모의고사 분석":
     mt1, mt2, mt3 = st.tabs(["📉 전체 성적 추이", "🔍 단일 시험 분석", "📊 누적 취약점 분석"])
@@ -471,7 +467,7 @@ elif menu == "🎯 모의고사 분석":
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 누적 약점 정밀 보고서</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 9. 성찰 리포트 (기억 기능 추가)
+# 8. 성찰 리포트
 # ==========================================
 elif menu == "🧠 성찰 리포트":
     curr_y = sel_term[:3] if sel_term else ""
@@ -510,7 +506,7 @@ elif menu == "🧠 성찰 리포트":
         st.info("성찰 기록이 없습니다.")
 
 # ==========================================
-# 10. 비교과 타임라인 (기억 기능 추가)
+# 9. 비교과 타임라인
 # ==========================================
 elif menu == "🏆 비교과 타임라인":
     curr_y = sel_term[:3] if sel_term else ""
@@ -574,7 +570,7 @@ elif menu == "🏆 비교과 타임라인":
         st.info("활동 기록이 없습니다.")
 
 # ==========================================
-# 11. 상담 기록 작성 (학번 기반 인간 친화적 저장)
+# 11. 상담 기록 작성
 # ==========================================
 elif menu == "📝 상담 기록":
     uid_counsel = pd.DataFrame()
