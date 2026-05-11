@@ -574,7 +574,7 @@ elif menu == "🏆 비교과 타임라인":
         st.info("활동 기록이 없습니다.")
 
 # ==========================================
-# 11. 상담 기록 작성
+# 11. 상담 기록 작성 (학번 기반 인간 친화적 저장)
 # ==========================================
 elif menu == "📝 상담 기록":
     uid_counsel = pd.DataFrame()
@@ -583,7 +583,8 @@ elif menu == "📝 상담 기록":
         if '고유번호' in df_counsel.columns:
             uid_counsel = df_counsel[df_counsel['고유번호'] == sel_uid].copy()
         elif '학번' in df_counsel.columns:
-            sel_hakbun = sel_student_label.split(" ")[0]
+            # [수정됨] sel_student_label -> sel_student
+            sel_hakbun = sel_student.split(" ")[0]
             uid_counsel = df_counsel[df_counsel['학번'].astype(str) == sel_hakbun].copy()
 
     st.subheader(f"📖 {sel_name} 누적 상담 기록")
@@ -624,11 +625,12 @@ elif menu == "📝 상담 기록":
                             sh = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
                             sh.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
                             
-                        sel_hakbun = sel_student_label.split(" ")[0]
+                        # [수정됨] sel_student_label -> sel_student
+                        sel_hakbun = sel_student.split(" ")[0]
                         sh.append_row([sel_hakbun, sel_name, str(c_date), c_type, c_content])
                         
                         st.cache_resource.clear() 
-                        st.success("✅ 저장 완료! 앱을 '새로고침(F5)' 하시면 기록이 나타납니다.")
+                        st.success("✅ 저장 완료! 사이드바의 '🔄 최신 데이터 불러오기' 버튼을 누르시면 기록이 나타납니다.")
                         
                     except Exception as e: 
                         st.error(f"저장 중 오류 발생: {e}")
