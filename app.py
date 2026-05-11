@@ -24,7 +24,7 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄용 마법 코드 (Ctrl+P 누를 때 작동) */
+    /* 🖨️ 인쇄용 마법 코드 */
     @media print {
         [data-testid="stSidebar"] { display: none !important; }
         header { display: none !important; }
@@ -85,7 +85,6 @@ def calc_9_tier(score, all_scores):
     greater = (all_scores > score).sum()
     equal = (all_scores == score).sum()
     pct = ((greater + (equal / 2.0)) / len(all_scores)) * 100
-    
     if pct <= 4: return 1
     elif pct <= 11: return 2
     elif pct <= 23: return 3
@@ -148,42 +147,40 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
 
-# AI 모델 동적 할당 (404 에러 완벽 차단)
+# ==========================================
+# 5. AI 모델 동적 할당 (404 에러 방지)
+# ==========================================
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     target_model_name = None
-    
     priorities = ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro', 'models/gemini-1.0-pro']
     for p_model in priorities:
         if p_model in available_models:
             target_model_name = p_model
             break
-            
-    if target_model_name is None and len(available_models) > 0:
+    if target_model_name is None and len(available_models) > 0: 
         target_model_name = available_models[0]
-        
-    if target_model_name:
+    if target_model_name: 
         ai_model = genai.GenerativeModel(target_model_name)
-    else:
+    else: 
         ai_model = None
-except Exception as e:
+except Exception: 
     ai_model = None
 
 # ==========================================
-# 5. 사이드바 구성 (이스터에그 포함!)
+# 6. 사이드바 구성 및 [새로고침 기능]
 # ==========================================
 query_params = st.query_params
 
 with st.sidebar:
     st.title("🏫 상담 시스템 v2")
-   # [이스터에그] 관리자님의 영혼이 담긴 서명
     st.markdown("<div style='text-align: right; font-size: 0.8rem; color: #94A3B8; margin-top: -15px; margin-bottom: 20px;'><i>✨ made by 40 admin</i></div>", unsafe_allow_html=True)
-
+    
     if st.button("🔄 최신 데이터 불러오기", use_container_width=True):
         st.cache_resource.clear()
-        st.rerun()  # 화면을 즉시 새로고침합니다
-    
+        st.rerun()
+
     sel_term = st.selectbox("📅 학기 선택", sorted(df_scores['학기'].unique(), reverse=True) if not df_scores.empty else [])
     sel_class = st.selectbox("🏘️ 학급 선택", sorted(df_scores[df_scores['학기'] == sel_term]['반'].unique()) if sel_term else [])
     
@@ -224,7 +221,7 @@ with st.sidebar:
 st.header(f"📊 {sel_student} 분석 리포트")
 
 # ==========================================
-# 6. 내신 분석
+# 7. 내신 분석
 # ==========================================
 if menu == "📈 내신 분석":
     t1, t2, t3 = st.tabs(["📊 상세 성적", "📉 학기별 평점", "📈 과목군 추이"])
@@ -303,7 +300,7 @@ if menu == "📈 내신 분석":
                 st.info("💡 Y축은 상대적 위치(백분위)이며, 점 위의 숫자는 실제 원점수입니다.")
 
 # ==========================================
-# 7. 모의고사 분석
+# 8. 모의고사 분석 
 # ==========================================
 elif menu == "🎯 모의고사 분석":
     mt1, mt2, mt3 = st.tabs(["📉 전체 성적 추이", "🔍 단일 시험 분석", "📊 누적 취약점 분석"])
@@ -471,7 +468,7 @@ elif menu == "🎯 모의고사 분석":
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 누적 약점 정밀 보고서</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 8. 성찰 리포트
+# 9. 성찰 리포트 
 # ==========================================
 elif menu == "🧠 성찰 리포트":
     curr_y = sel_term[:3] if sel_term else ""
@@ -481,6 +478,7 @@ elif menu == "🧠 성찰 리포트":
     else: uid_ref = df_ref[df_ref['고유번호'] == sel_uid].copy()
     
     if not uid_ref.empty:
+        st.subheader(f"🧠 {sel_name} 학생의 시험 성찰 기록")
         s_ex = st.selectbox("시험 선택", uid_ref['시험명'].unique())
         row = uid_ref[uid_ref['시험명'] == s_ex].iloc[-1]
         
@@ -510,7 +508,7 @@ elif menu == "🧠 성찰 리포트":
         st.info("성찰 기록이 없습니다.")
 
 # ==========================================
-# 9. 비교과 타임라인
+# 10. 비교과 타임라인
 # ==========================================
 elif menu == "🏆 비교과 타임라인":
     curr_y = sel_term[:3] if sel_term else ""
@@ -574,63 +572,55 @@ elif menu == "🏆 비교과 타임라인":
         st.info("활동 기록이 없습니다.")
 
 # ==========================================
-# 11. 상담 기록 작성 (학번 기반 인간 친화적 저장)
+# 11. 상담 기록 (학생 보호용 탭 분리 적용!)
 # ==========================================
 elif menu == "📝 상담 기록":
-    uid_counsel = pd.DataFrame()
+    u_cs = df_counsel[df_counsel['고유번호']==sel_uid].copy() if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번']==sel_student.split(" ")[0]].copy()
     
-    if not df_counsel.empty:
-        if '고유번호' in df_counsel.columns:
-            uid_counsel = df_counsel[df_counsel['고유번호'] == sel_uid].copy()
-        elif '학번' in df_counsel.columns:
-            # [수정됨] sel_student_label -> sel_student
-            sel_hakbun = sel_student.split(" ")[0]
-            uid_counsel = df_counsel[df_counsel['학번'].astype(str) == sel_hakbun].copy()
-
-    st.subheader(f"📖 {sel_name} 누적 상담 기록")
-    if not uid_counsel.empty and '상담일자' in uid_counsel.columns:
-        for i, row in uid_counsel.sort_values('상담일자', ascending=False).iterrows():
-            st.markdown(f"""
-            <div class="timeline-card" style="border-left: 6px solid #8B5CF6;">
-                <span class="badge" style="background:#F3E8FF; color:#7E22CE;">🗣️ {row.get("상담유형", "일반 상담")}</span>
-                <div style="font-size:0.85rem; color:#64748B; margin-bottom:10px;">📅 {row.get("상담일자", "-")}</div>
-                <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.95rem; line-height:1.7;">
-                    {row.get("상담내용", "-")}
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
-    else: 
-        st.info("이전에 작성된 상담 기록이 없습니다.")
-        
-    st.markdown("---")
-    st.subheader("✍️ 신규 상담 기록 작성")
+    # [핵심] 학생이 화면을 봐도 안전하도록 탭 분리!
+    tab_new, tab_history = st.tabs(["✍️ 신규 상담 작성", "🔒 누적 상담 기록 (비공개)"])
     
-    with st.form("counsel_form", clear_on_submit=True):
-        c_date = st.date_input("상담 일자")
-        c_type = st.selectbox("상담 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "기타"])
-        c_content = st.text_area("상담 내용 및 결과", height=150, placeholder="내용을 입력해주세요.")
-        
-        if st.form_submit_button("💾 저장하기"):
-            if c_content.strip() != "":
-                with st.spinner("구글 시트에 저장 중입니다..."):
-                    try:
-                        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-                        client = gspread.authorize(creds)
-                        doc = client.open("40기 마스터 파일")
-                        
-                        try: 
-                            sh = doc.worksheet("71_상담기록")
-                        except:
-                            sh = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
-                            sh.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
+    with tab_new:
+        st.subheader("✍️ 신규 상담 기록 작성")
+        with st.form("c_f", clear_on_submit=True):
+            d = st.date_input("상담 일자")
+            # [학부모상담 추가됨]
+            t = st.selectbox("상담 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"])
+            c = st.text_area("상담 내용 및 결과", height=150, placeholder="아이들에게 보이지 않으니 편하게 작성하세요.")
+            
+            if st.form_submit_button("💾 상담 기록 저장하기"):
+                if c.strip():
+                    with st.spinner("저장 중..."):
+                        try:
+                            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                            creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                            doc = gspread.authorize(creds).open("40기 마스터 파일")
+                            try: sh = doc.worksheet("71_상담기록")
+                            except:
+                                sh = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
+                                sh.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
                             
-                        # [수정됨] sel_student_label -> sel_student
-                        sel_hakbun = sel_student.split(" ")[0]
-                        sh.append_row([sel_hakbun, sel_name, str(c_date), c_type, c_content])
-                        
-                        st.cache_resource.clear() 
-                        st.success("✅ 저장 완료! 사이드바의 '🔄 최신 데이터 불러오기' 버튼을 누르시면 기록이 나타납니다.")
-                        
-                    except Exception as e: 
-                        st.error(f"저장 중 오류 발생: {e}")
+                            sel_hakbun = sel_student.split(" ")[0]
+                            sh.append_row([sel_hakbun, sel_name, str(d), t, c])
+                            
+                            st.cache_resource.clear()
+                            st.success("✅ 저장 완료! 사이드바의 '🔄 최신 데이터 불러오기' 버튼을 누르시면 기록이 갱신됩니다.")
+                        except Exception as e: 
+                            st.error(f"저장 실패: {e}")
+                            
+    with tab_history:
+        st.subheader(f"📖 {sel_name} 누적 상담 기록")
+        st.info("💡 학생과 함께 모니터를 볼 때는 이 탭을 닫아두시는 것을 권장합니다.")
+        if not u_cs.empty:
+            for _, r in u_cs.sort_values('상담일자', ascending=False).iterrows():
+                st.markdown(f"""
+                <div class="timeline-card" style="border-left: 6px solid #8B5CF6;">
+                    <span class="badge" style="background:#F3E8FF; color:#7E22CE;">🗣️ {r.get("상담유형", "일반 상담")}</span>
+                    <div style="font-size:0.85rem; color:#64748B; margin-bottom:10px;">📅 {r.get("상담일자", "-")}</div>
+                    <div style="background:#F8FAFC; padding:18px; border-radius:12px; font-size:0.95rem; line-height:1.7;">
+                        {r.get("상담내용", "-")}
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.warning("이전에 작성된 상담 기록이 없습니다.")
