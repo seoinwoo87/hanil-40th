@@ -209,7 +209,6 @@ with st.sidebar:
         st.session_state["current_student"] = sel_uid
         st.session_state["ai_cache"] = {} 
 
-    # 메뉴 구성 (출력 탭 포함)
     menu_list = ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인", "📝 상담 기록", "🖨️ 맞춤형 리포트 출력"]
     d_menu_idx = menu_list.index(query_params["menu"]) if "menu" in query_params and query_params["menu"] in menu_list else 0
     menu = st.radio("📑 분석 메뉴", menu_list, index=d_menu_idx)
@@ -621,7 +620,7 @@ elif menu == "📝 상담 기록":
             st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (타이틀/날짜 추가)
+# 11. 🖨️ 맞춤형 리포트 출력 (최근 성적표 교체 완료)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
@@ -629,7 +628,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     st.write("보고서에 포함할 항목을 선택하세요. 하단의 **결과물**을 확인한 후 키보드에서 `Ctrl + P` (Mac은 `Cmd + P`)를 눌러 PDF로 인쇄하시면 됩니다.")
 
     c1, c2, c3, c4 = st.columns(4)
-    with c1: p_grade = st.checkbox("📈 내신 요약 및 추이", value=True)
+    with c1: p_grade = st.checkbox("📈 내신 요약 및 성적표", value=True)
     with c2: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
     with c3: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
     with c4: p_ai = st.checkbox("🤖 AI 처방전 모아보기", value=True)
@@ -637,7 +636,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("---")
 
     # ================= 실제 출력되는 영역 =================
-    # [수정완료] 가장 안전한 datetime을 사용하여 오늘 날짜 출력
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     st.markdown(f"<div style='text-align: right; color: #64748B; font-size: 0.9rem; margin-bottom: 5px;'>출력일자: {today_str}</div>", unsafe_allow_html=True)
@@ -661,16 +659,21 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             sc1.metric(f"📊 {sel_term} 5등급제 평점", f"{g5:.2f} 등급")
             sc2.metric(f"📊 {sel_term} 9등급제 평점", f"{g9:.2f} 등급")
         
-        if '교과군' in uid_scores.columns:
-            tr = uid_scores[uid_scores['시험'].str.contains('고사')].copy()
-            tr['백분위'] = tr.apply(lambda row: (df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna() <= safe_numeric(row.get(s_col,0))).sum() / len(df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna()) * 100 if not df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna().empty else 0, axis=1)
-            tr['시기'] = tr['학기'] + " " + tr['시험']
-            tr['순서'] = tr.apply(get_time_rank, axis=1)
-            tr = tr.sort_values('순서')
+        # [핵심 수정] 누적 그래프 대신 '가장 최근 실제 성적' 테이블 출력
+        uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
+        if not uid_scores.empty and uid_scores['순서'].max() > 0:
+            latest_order = uid_scores['순서'].max()
+            latest_df = uid_scores[uid_scores['순서'] == latest_order].copy()
+            latest_term = latest_df.iloc[0]['학기']
+            latest_exam = latest_df.iloc[0]['시험']
             
-            fig_g = px.line(tr, x='시기', y='백분위', color='교과군', markers=True, title="전체 교과군 누적 백분위(%) 추이")
-            fig_g.update_layout(yaxis=dict(range=[-5, 110]), height=350)
-            st.plotly_chart(fig_g, use_container_width=True)
+            st.markdown(f"<br><b>📍 최근 성적 상세 ({latest_term} {latest_exam})</b>", unsafe_allow_html=True)
+            # 안전하게 존재하는 컬럼만 추출하여 중복 없이 리스트화
+            target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급', '성취도']
+            display_cols = list(dict.fromkeys([c for c in target_cols if c in latest_df.columns]))
+            st.table(style_centered(latest_df[display_cols]))
+        else:
+            st.info("표시할 성적 데이터가 없습니다.")
         st.markdown("<br>", unsafe_allow_html=True)
 
     if p_mock:
