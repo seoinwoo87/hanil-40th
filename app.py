@@ -83,6 +83,7 @@ def safe_numeric(val):
         return float(cleaned) if cleaned else 0.0
     except: return 0.0
 
+# 9등급제 기준
 def calc_9_tier(score, all_scores):
     if all_scores.empty: return 0
     greater = (all_scores > score).sum()
@@ -97,6 +98,18 @@ def calc_9_tier(score, all_scores):
     elif pct <= 89: return 7
     elif pct <= 96: return 8
     else: return 9
+
+# [신규 추가] 5등급제 기준
+def calc_5_tier(score, all_scores):
+    if all_scores.empty: return 0
+    greater = (all_scores > score).sum()
+    equal = (all_scores == score).sum()
+    pct = ((greater + (equal / 2.0)) / len(all_scores)) * 100
+    if pct <= 10: return 1
+    elif pct <= 34: return 2
+    elif pct <= 66: return 3
+    elif pct <= 90: return 4
+    else: return 5
 
 def get_time_rank(row):
     t_map = {"1학년 1학기": 10, "1학년 2학기": 20, "2학년 1학기": 30, "2학년 2학기": 40, "3학년 1학기": 50, "3학년 2학기": 60}
@@ -620,7 +633,7 @@ elif menu == "📝 상담 기록":
             st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (최근 성적표 교체 완료)
+# 11. 🖨️ 맞춤형 리포트 출력 (최근 성적표 교체 및 예상등급/등수 표기)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
@@ -659,7 +672,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             sc1.metric(f"📊 {sel_term} 5등급제 평점", f"{g5:.2f} 등급")
             sc2.metric(f"📊 {sel_term} 9등급제 평점", f"{g9:.2f} 등급")
         
-        # [핵심 수정] 누적 그래프 대신 '가장 최근 실제 성적' 테이블 출력
         uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
         if not uid_scores.empty and uid_scores['순서'].max() > 0:
             latest_order = uid_scores['순서'].max()
@@ -667,9 +679,23 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             latest_term = latest_df.iloc[0]['학기']
             latest_exam = latest_df.iloc[0]['시험']
             
+            # [핵심] 등급 칸에 5/9등급제 예상 등급과 등수를 덮어쓰는 포맷팅 함수
+            def format_expected_grade(row):
+                my_s = safe_numeric(row.get(s_col, 0))
+                all_s = df_scores[(df_scores['학기']==row['학기']) & (df_scores['시험']==row['시험']) & (df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna()
+                if all_s.empty: return row.get('등급', '-')
+                
+                rank = (all_s > my_s).sum() + 1
+                total = len(all_s)
+                g5_val = calc_5_tier(my_s, all_s)
+                g9_val = calc_9_tier(my_s, all_s)
+                
+                return f"{g5_val}등급(5제) / {g9_val}등급(9제) [{rank}/{total}등]"
+                
+            latest_df['등급(예상 등수)'] = latest_df.apply(format_expected_grade, axis=1)
+            
             st.markdown(f"<br><b>📍 최근 성적 상세 ({latest_term} {latest_exam})</b>", unsafe_allow_html=True)
-            # 안전하게 존재하는 컬럼만 추출하여 중복 없이 리스트화
-            target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급', '성취도']
+            target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급(예상 등수)', '성취도']
             display_cols = list(dict.fromkeys([c for c in target_cols if c in latest_df.columns]))
             st.table(style_centered(latest_df[display_cols]))
         else:
