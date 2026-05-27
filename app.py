@@ -6,6 +6,7 @@ import google.generativeai as genai
 import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import re
+import datetime
 
 # ==========================================
 # 1. 페이지 설정 및 디자인 (인쇄 최적화 포함)
@@ -31,6 +32,8 @@ st.markdown("""
         .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
         * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
         canvas, .js-plotly-plot { page-break-inside: avoid; }
+        /* 인쇄 탭 내부 옵션 버튼들 숨기기 */
+        .print-hide { display: none !important; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -147,9 +150,7 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
 
-# ==========================================
-# 5. AI 모델 동적 할당 (404 에러 방지)
-# ==========================================
+# AI 모델 동적 할당
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
@@ -159,17 +160,13 @@ try:
         if p_model in available_models:
             target_model_name = p_model
             break
-    if target_model_name is None and len(available_models) > 0: 
-        target_model_name = available_models[0]
-    if target_model_name: 
-        ai_model = genai.GenerativeModel(target_model_name)
-    else: 
-        ai_model = None
-except Exception: 
-    ai_model = None
+    if target_model_name is None and len(available_models) > 0: target_model_name = available_models[0]
+    if target_model_name: ai_model = genai.GenerativeModel(target_model_name)
+    else: ai_model = None
+except Exception: ai_model = None
 
 # ==========================================
-# 6. 사이드바 구성 및 [새로고침 기능]
+# 5. 사이드바 구성 및 [새로고침 기능]
 # ==========================================
 query_params = st.query_params
 
@@ -212,16 +209,16 @@ with st.sidebar:
         st.session_state["current_student"] = sel_uid
         st.session_state["ai_cache"] = {} 
 
-    st.markdown("---")
-    menu_list = ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인", "📝 상담 기록"]
+    # 메뉴 구성 (출력 탭 포함)
+    menu_list = ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인", "📝 상담 기록", "🖨️ 맞춤형 리포트 출력"]
     d_menu_idx = menu_list.index(query_params["menu"]) if "menu" in query_params and query_params["menu"] in menu_list else 0
     menu = st.radio("📑 분석 메뉴", menu_list, index=d_menu_idx)
     st.query_params["menu"] = menu
 
-st.header(f"📊 {sel_student} 분석 리포트")
+st.header(f"📊 {sel_student} 분석 리포트" if menu != "🖨️ 맞춤형 리포트 출력" else "")
 
 # ==========================================
-# 7. 내신 분석
+# 6. 내신 분석
 # ==========================================
 if menu == "📈 내신 분석":
     t1, t2, t3 = st.tabs(["📊 상세 성적", "📉 학기별 평점", "📈 과목군 추이"])
@@ -300,7 +297,7 @@ if menu == "📈 내신 분석":
                 st.info("💡 Y축은 상대적 위치(백분위)이며, 점 위의 숫자는 실제 원점수입니다.")
 
 # ==========================================
-# 8. 모의고사 분석 
+# 7. 모의고사 분석
 # ==========================================
 elif menu == "🎯 모의고사 분석":
     mt1, mt2, mt3 = st.tabs(["📉 전체 성적 추이", "🔍 단일 시험 분석", "📊 누적 취약점 분석"])
@@ -468,7 +465,7 @@ elif menu == "🎯 모의고사 분석":
                         st.markdown(f'<div class="ai-container"><b>🤖 AI 누적 약점 정밀 보고서</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
 
 # ==========================================
-# 9. 성찰 리포트 
+# 8. 성찰 리포트 
 # ==========================================
 elif menu == "🧠 성찰 리포트":
     curr_y = sel_term[:3] if sel_term else ""
@@ -508,7 +505,7 @@ elif menu == "🧠 성찰 리포트":
         st.info("성찰 기록이 없습니다.")
 
 # ==========================================
-# 10. 비교과 타임라인
+# 9. 비교과 타임라인
 # ==========================================
 elif menu == "🏆 비교과 타임라인":
     curr_y = sel_term[:3] if sel_term else ""
@@ -525,7 +522,7 @@ elif menu == "🏆 비교과 타임라인":
         s_cols = st.columns(6)
         for i, comp_name in enumerate(comp_standards):
             count = uid_act[col_comp].str.contains(comp_name, na=False).sum() if col_comp else 0
-            with s_cols[i]: st.markdown(f'<div class="stat-box"><small style="color:#64748B; font-size:0.75rem;">{comp_name}</small><br><b style="font-size:1.4rem; color:#2563EB;">{count}건</b></div>', unsafe_allow_html=True)
+            with s_cols[i]: st.markdown(f'<div class="stat-box" style="padding:10px;"><small style="color:#64748B; font-size:0.65rem;">{comp_name}</small><br><b style="font-size:1.2rem; color:#2563EB;">{count}건</b></div>', unsafe_allow_html=True)
                 
         st.markdown("---")
         f1, f2 = st.columns(2)
@@ -572,19 +569,17 @@ elif menu == "🏆 비교과 타임라인":
         st.info("활동 기록이 없습니다.")
 
 # ==========================================
-# 11. 상담 기록 (학생 보호용 탭 분리 적용!)
+# 10. 상담 기록 (학생 보호용 탭 분리 적용!)
 # ==========================================
 elif menu == "📝 상담 기록":
     u_cs = df_counsel[df_counsel['고유번호']==sel_uid].copy() if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번']==sel_student.split(" ")[0]].copy()
     
-    # [핵심] 학생이 화면을 봐도 안전하도록 탭 분리!
     tab_new, tab_history = st.tabs(["✍️ 신규 상담 작성", "🔒 누적 상담 기록 (비공개)"])
     
     with tab_new:
         st.subheader("✍️ 신규 상담 기록 작성")
         with st.form("c_f", clear_on_submit=True):
             d = st.date_input("상담 일자")
-            # [학부모상담 추가됨]
             t = st.selectbox("상담 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"])
             c = st.text_area("상담 내용 및 결과", height=150, placeholder="아이들에게 보이지 않으니 편하게 작성하세요.")
             
@@ -624,3 +619,117 @@ elif menu == "📝 상담 기록":
                 """, unsafe_allow_html=True)
         else:
             st.warning("이전에 작성된 상담 기록이 없습니다.")
+
+# ==========================================
+# 11. 🖨️ 맞춤형 리포트 출력 (타이틀/날짜 추가)
+# ==========================================
+elif menu == "🖨️ 맞춤형 리포트 출력":
+    st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
+    st.subheader("🖨️ 맞춤형 종합 리포트 출력")
+    st.write("보고서에 포함할 항목을 선택하세요. 하단의 **결과물**을 확인한 후 키보드에서 `Ctrl + P` (Mac은 `Cmd + P`)를 눌러 PDF로 인쇄하시면 됩니다.")
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1: p_grade = st.checkbox("📈 내신 요약 및 추이", value=True)
+    with c2: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
+    with c3: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
+    with c4: p_ai = st.checkbox("🤖 AI 처방전 모아보기", value=True)
+    st.markdown("</div>", unsafe_allow_html=True)
+    st.markdown("---")
+
+    # ================= 실제 출력되는 영역 =================
+    # [수정완료] 가장 안전한 datetime을 사용하여 오늘 날짜 출력
+    today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
+    
+    st.markdown(f"<div style='text-align: right; color: #64748B; font-size: 0.9rem; margin-bottom: 5px;'>출력일자: {today_str}</div>", unsafe_allow_html=True)
+    st.markdown(f"<h1 style='text-align: center; color: #0F172A; margin-bottom: 5px; font-weight: 800;'>한일고등학교 40기 상담 자료</h1>", unsafe_allow_html=True)
+    st.markdown(f"<h3 style='text-align: center; color: #1E40AF; margin-bottom: 40px;'>📑 {sel_name} 학생 종합 분석 리포트</h3>", unsafe_allow_html=True)
+
+    if p_grade:
+        st.markdown("### 📈 내신 성적 요약")
+        uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
+        s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
+        
+        f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
+        u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
+        if not f_df.empty and u_col:
+            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+            t_u = f_df[u_col].apply(safe_numeric).sum()
+            g5 = (f_df['등급'].apply(safe_numeric)*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
+            g9 = (f_df['9등급(자동)']*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
+            
+            sc1, sc2 = st.columns(2)
+            sc1.metric(f"📊 {sel_term} 5등급제 평점", f"{g5:.2f} 등급")
+            sc2.metric(f"📊 {sel_term} 9등급제 평점", f"{g9:.2f} 등급")
+        
+        if '교과군' in uid_scores.columns:
+            tr = uid_scores[uid_scores['시험'].str.contains('고사')].copy()
+            tr['백분위'] = tr.apply(lambda row: (df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna() <= safe_numeric(row.get(s_col,0))).sum() / len(df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna()) * 100 if not df_scores[(df_scores['학기']==row['학기'])&(df_scores['시험']==row['시험'])&(df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna().empty else 0, axis=1)
+            tr['시기'] = tr['학기'] + " " + tr['시험']
+            tr['순서'] = tr.apply(get_time_rank, axis=1)
+            tr = tr.sort_values('순서')
+            
+            fig_g = px.line(tr, x='시기', y='백분위', color='교과군', markers=True, title="전체 교과군 누적 백분위(%) 추이")
+            fig_g.update_layout(yaxis=dict(range=[-5, 110]), height=350)
+            st.plotly_chart(fig_g, use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    if p_mock:
+        st.markdown("### 🎯 모의고사 성적 요약")
+        uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
+        if not uid_mk.empty:
+            latest = uid_mk.iloc[-1]
+            st.markdown(f"**[{latest.get('시험명', '최근 시험')}]**")
+            subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
+            summary = []
+            for n, keys in subj_map.items():
+                def f_val(k_list, target_k):
+                    for col in latest.index:
+                        if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
+                    return '-'
+                v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
+                
+                try: f_perc = f"{float(v_b):.2f}%"
+                except: f_perc = v_b if v_b == '-' else f"{v_b}%"
+                try: f_grade = f"{int(float(v_g))}등급"
+                except: f_grade = v_g if v_g == '-' else f"{v_g}등급"
+                summary.append({"과목": n, "표준점수": v_p, "백분위": f_perc, "등급": f_grade})
+            st.table(style_centered(pd.DataFrame(summary)))
+            
+            p_cols = [c for c in uid_mk.columns if '백분' in c]
+            if p_cols:
+                plot_m = uid_mk[['시험명'] + p_cols].copy()
+                for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
+                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 누적 백분위(%) 추이")
+                fig_m.update_layout(yaxis=dict(range=[0, 105]), height=350)
+                st.plotly_chart(fig_m, use_container_width=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+    if p_act:
+        st.markdown("### 🏆 비교과 활동 역량 분포")
+        curr_y = sel_term[:3] if sel_term else ""
+        t_col = next((c for c in df_act.columns if any(k in c for k in ['학년', '학기', '시기', '연도'])), None)
+        u_ac = df_act[(df_act['고유번호'] == sel_uid) & (df_act[t_col].str.contains(curr_y, na=False))].copy() if t_col else df_act[df_act['고유번호'] == sel_uid].copy()
+        
+        if not u_ac.empty:
+            col_comp = next((c for c in u_ac.columns if '역량' in c), None)
+            comp_standards = ["탐구력/지식정보처리", "창의적 사고", "비판적 사고", "자기주도성/자기관리", "협력적 소통", "공동체 의식/윤리"]
+            s_cols = st.columns(6)
+            for i, comp_name in enumerate(comp_standards):
+                count = u_ac[col_comp].str.contains(comp_name, na=False).sum() if col_comp else 0
+                with s_cols[i]: st.markdown(f'<div class="stat-box" style="padding:10px;"><small style="color:#64748B; font-size:0.65rem;">{comp_name}</small><br><b style="font-size:1.2rem; color:#2563EB;">{count}건</b></div>', unsafe_allow_html=True)
+        st.markdown("<br><br>", unsafe_allow_html=True)
+
+    if p_ai:
+        st.markdown("### 🤖 맞춤형 AI 학습 처방 및 조언")
+        if "ai_cache" in st.session_state and st.session_state["ai_cache"]:
+            for key, text in st.session_state["ai_cache"].items():
+                title = "AI 종합 분석"
+                if "mock_single" in key: title = "단일 모의고사 약점 분석"
+                elif "mock_cum" in key: title = "누적 모의고사 장기 로드맵"
+                elif "ref_" in key: title = "학습 성찰 피드백"
+                elif "act_" in key: title = "비교과 생기부 초안"
+                
+                st.markdown(f"**[{title}]**")
+                st.markdown(f'<div style="background: #F8FAFC; padding: 15px; border-left: 4px solid #2563EB; margin-bottom: 20px; font-size: 0.95rem;">{text}</div>', unsafe_allow_html=True)
+        else:
+            st.info("현재 저장된 AI 처방전이 없습니다. '분석 메뉴'의 각 탭에서 'AI 분석 생성' 버튼을 먼저 눌러주시면 이곳에 모아서 인쇄할 수 있습니다.")
