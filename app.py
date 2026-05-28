@@ -8,6 +8,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 import datetime
 import json
+import time  # 일괄 생성 딜레이용 추가
 import streamlit.components.v1 as components
 
 # ==========================================
@@ -506,39 +507,104 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     st.subheader("🌟 학생 종합 컨설팅 생성")
     st.write("학생의 내신, 모의고사, 비교과 데이터를 융합하여 종합적인 학습 전략을 즉시 도출합니다.")
     
-    if st.button("🪄 통합 컨설팅 리포트 생성", use_container_width=True):
-        if ai_model:
-            with st.spinner("학생의 모든 데이터를 통합 분석 중입니다..."):
-                uid_scores = df_scores[df_scores['고유번호'] == sel_uid]
-                s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
-                g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
+    # === 단일 생성 & 일괄 생성 버튼 두 개 배치 ===
+    c_btn1, c_btn2 = st.columns(2)
+    with c_btn1:
+        if st.button("🪄 현재 학생 컨설팅 생성", use_container_width=True):
+            if ai_model:
+                with st.spinner("학생의 데이터를 통합 분석 중입니다..."):
+                    uid_scores = df_scores[df_scores['고유번호'] == sel_uid]
+                    s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
+                    g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
+                    
+                    uid_mk = df_mock[df_mock['고유번호'] == sel_uid]
+                    m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
+                    
+                    uid_act = df_act[df_act['고유번호'] == sel_uid]
+                    a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
+                    
+                    master_prompt = f"""
+                    당신은 대한민국 최고 수준의 고등학교 입시/교과 데이터 컨설턴트입니다.
+                    학생({sel_name})의 아래 데이터를 바탕으로 완벽한 종합 컨설팅 리포트를 작성하세요.
+                    [수집된 학생 데이터 요약]
+                    1. 최근 내신 성적: {g_data}
+                    2. 최근 모의고사 성적: {m_data}
+                    3. 비교과 활동 현황: {a_data}
+                    [필수 포함 항목 및 양식]
+                    1. 종합 총평 (학생의 현재 상황에 대한 핵심 3줄 요약)
+                    2. 집중 공략 대상: 보다 치중해야 하는 취약/핵심 과목 지정
+                    3. 맞춤형 학습법: 해당 과목에 대한 구체적이고 실천 가능한 학습 방법 제시
+                    4. 향후 비교과 및 진로 연계 조언
+                    [엄격한 작성 규칙]
+                    - 'AI', '인공지능'이라는 단어는 절대 사용하지 마세요.
+                    - 반드시 간결하고 명확한 '개조식(명사형 종결, ~함, ~임 등)'으로 작성하세요.
+                    - 대화형 문구(~해요, ~습니다 등)는 절대 금지합니다.
+                    """
+                    try: st.session_state["ai_cache"]["master_consulting"] = ai_model.generate_content(master_prompt).text
+                    except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
+            else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
+
+    with c_btn2:
+        if st.button("🚀 우리 반 전체 AI 일괄 생성 (자동화)", use_container_width=True):
+            if ai_model:
+                class_uids = class_students['고유번호'].tolist()
+                class_names = class_students['학생명'].tolist()
                 
-                uid_mk = df_mock[df_mock['고유번호'] == sel_uid]
-                m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
+                progress_text = "우리 반 전체 학생 분석 중... 커피 한 잔 뽑아오세요! ☕"
+                my_bar = st.progress(0, text=progress_text)
                 
-                uid_act = df_act[df_act['고유번호'] == sel_uid]
-                a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
+                success_count = 0
+                for i, (u_id, u_name) in enumerate(zip(class_uids, class_names)):
+                    # 캐시 초기화
+                    if u_id not in st.session_state["global_ai_cache"]:
+                        st.session_state["global_ai_cache"][u_id] = {}
+                    
+                    # 이미 생성된 캐시가 있으면 패스 (구글 API 한도 절약)
+                    if "master_consulting" in st.session_state["global_ai_cache"][u_id]:
+                        success_count += 1
+                    else:
+                        uid_scores = df_scores[df_scores['고유번호'] == u_id]
+                        s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
+                        g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
+                        
+                        uid_mk = df_mock[df_mock['고유번호'] == u_id]
+                        m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
+                        
+                        uid_act = df_act[df_act['고유번호'] == u_id]
+                        a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
+                        
+                        real_name = u_name.split(" ")[-1] if " " in u_name else u_name
+                        master_prompt = f"""
+                        당신은 대한민국 최고 수준의 고등학교 입시/교과 데이터 컨설턴트입니다.
+                        학생({real_name})의 아래 데이터를 바탕으로 완벽한 종합 컨설팅 리포트를 작성하세요.
+                        [수집된 학생 데이터 요약]
+                        1. 최근 내신 성적: {g_data}
+                        2. 최근 모의고사 성적: {m_data}
+                        3. 비교과 활동 현황: {a_data}
+                        [필수 포함 항목 및 양식]
+                        1. 종합 총평 (핵심 3줄 요약)
+                        2. 집중 공략 대상 (취약/핵심 과목 지정)
+                        3. 맞춤형 학습법 (구체적이고 실천 가능한 방법 제시)
+                        4. 향후 비교과 및 진로 연계 조언
+                        [엄격한 작성 규칙]
+                        - 'AI', '인공지능' 단어 절대 금지
+                        - 반드시 간결한 개조식(명사형 종결, ~함, ~임 등) 작성
+                        - 대화형 문구(~해요, ~습니다) 절대 금지
+                        """
+                        try:
+                            resp = ai_model.generate_content(master_prompt).text
+                            st.session_state["global_ai_cache"][u_id]["master_consulting"] = resp
+                            success_count += 1
+                            time.sleep(3.5) # 구글 API 429 Quota 에러 방지용 (필수)
+                        except Exception as e:
+                            st.error(f"{real_name} 학생 분석 중 오류 (잠시 후 다시 시도하세요): {e}")
+                            time.sleep(5)
+                            
+                    my_bar.progress((i + 1) / len(class_uids), text=f"분석 진행 중: {u_name} ({i+1}/{len(class_uids)})")
                 
-                master_prompt = f"""
-                당신은 대한민국 최고 수준의 고등학교 입시/교과 데이터 컨설턴트입니다.
-                학생({sel_name})의 아래 데이터를 바탕으로 완벽한 종합 컨설팅 리포트를 작성하세요.
-                [수집된 학생 데이터 요약]
-                1. 최근 내신 성적: {g_data}
-                2. 최근 모의고사 성적: {m_data}
-                3. 비교과 활동 현황: {a_data}
-                [필수 포함 항목 및 양식]
-                1. 종합 총평 (학생의 현재 상황에 대한 핵심 3줄 요약)
-                2. 집중 공략 대상: 보다 치중해야 하는 취약/핵심 과목 지정
-                3. 맞춤형 학습법: 해당 과목에 대한 구체적이고 실천 가능한 학습 방법 제시
-                4. 향후 비교과 및 진로 연계 조언
-                [엄격한 작성 규칙]
-                - 'AI', '인공지능'이라는 단어는 절대 사용하지 마세요.
-                - 반드시 간결하고 명확한 '개조식(명사형 종결, ~함, ~임 등)'으로 작성하세요.
-                - 대화형 문구(~해요, ~습니다 등)는 절대 금지합니다.
-                """
-                try: st.session_state["ai_cache"]["master_consulting"] = ai_model.generate_content(master_prompt).text
-                except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
-        else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
+                st.success(f"🎉 우리 반 {success_count}명 학생의 컨설팅 리포트 일괄 생성이 완료되었습니다! 이제 마음껏 인쇄하세요.")
+            else:
+                st.warning("AI 모델을 사용할 수 없습니다.")
 
     st.markdown("---")
     
@@ -650,23 +716,19 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>표시할 성적 데이터가 없습니다.</p>"
         body_html += "</div>"
 
- # [출력 순서 조정 2] 모의고사 요약 및 추이 (개별 과목 분리 & 전체 점수 표시 버전)
     if p_mock:
         body_html += """<div class="no-break"><h3>🎯 2. 수능 전국 모의고사 누적 성적 현황</h3>"""
         uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
         if not uid_mk.empty:
             body_html += f"<p style='font-weight: 700; margin-bottom: 8px;'>📍 모의고사 누적 성적표</p>"
             
-            # 1. 데이터에 존재하는 모든 과목(영역) 이름 동적 추출 (탐구 과목 분리 유지)
             raw_subjects = []
             for c in uid_mk.columns:
                 if any(x in c for x in ['표준점수', '표점', '백분위', '등급']):
-                    # '국어 백분위' -> '국어' 로 추출
                     subj = re.sub(r'표준점수|표점|백분위|등급|\s', '', c)
                     if subj and subj not in raw_subjects:
                         raw_subjects.append(subj)
             
-            # 2. 보기 좋게 정렬 (국 -> 수 -> 영 -> 한 -> 탐 순서)
             def sort_key(x):
                 if '국어' in x: return 1
                 if '수학' in x: return 2
@@ -674,20 +736,15 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 if '한국사' in x or '국사' in x: return 4
                 if '탐' in x or '과탐' in x or '사탐' in x: return 5 + raw_subjects.index(x)*0.1
                 return 10 + raw_subjects.index(x)*0.1
-            
             ordered_subjects = sorted(raw_subjects, key=sort_key)
             
-            # 3. 테이블 헤더 생성
             body_html += "<table><tr style='background-color: #F8FAFC; font-size: 0.9rem;'><th>시험명</th>"
-            for subj in ordered_subjects:
-                body_html += f"<th>{subj}</th>"
+            for subj in ordered_subjects: body_html += f"<th>{subj}</th>"
             body_html += "</tr>"
             
-            # 4. 각 시험별 성적(표점/백분위/등급)을 한 칸에 담기
             for _, row_mk in uid_mk.iterrows():
                 exam_name = row_mk.get('시험명', '-')
                 body_html += f"<tr style='font-size: 0.85rem;'><td style='font-weight:700; background:#F8FAFC; vertical-align:middle;'>{exam_name}</td>"
-                
                 for subj in ordered_subjects:
                     v_p, v_b, v_g = '-', '-', '-'
                     for col in row_mk.index:
@@ -697,7 +754,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                             elif '백분' in col_clean: v_b = row_mk[col]
                             elif '등급' in col_clean: v_g = row_mk[col]
                     
-                    # 소수점 및 정수 포맷팅 함수
                     def safe_fmt(val, is_float=False):
                         if val == '-' or pd.isna(val) or str(val).strip() == '': return "-"
                         try: return f"{float(val):.1f}" if is_float else f"{int(float(val))}"
@@ -707,25 +763,19 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                     f_perc = safe_fmt(v_b, is_float=True)
                     f_grade = safe_fmt(v_g)
                     
-                    # 절대평가(영어/한국사)이거나 표/백이 없는 경우 등급만 표시
                     if subj in ["영어", "한국사", "국사"] or (f_std == "-" and f_perc == "-"):
-                        if f_grade != "-":
-                            display_str = f"<span style='font-weight:800; color:#1E40AF; font-size: 1rem;'>{f_grade}등급</span>"
-                        else:
-                            display_str = "-"
+                        if f_grade != "-": display_str = f"<span style='font-weight:800; color:#1E40AF; font-size: 1rem;'>{f_grade}등급</span>"
+                        else: display_str = "-"
                     else:
-                        # 3단 콤보(표점, 백분위, 등급) 세로 정렬
                         f_perc_str = f"{f_perc}%" if f_perc != "-" else "-"
                         f_grade_str = f"{f_grade}등급" if f_grade != "-" else "-"
                         display_str = f"<div style='text-align:left; display:inline-block; line-height:1.5;'><small style='color:#64748B;'>표준:</small> {f_std}<br><small style='color:#64748B;'>백분:</small> <span style='color:#EA580C; font-weight:700;'>{f_perc_str}</span><br><small style='color:#64748B;'>등급:</small> <span style='color:#1E40AF; font-weight:800;'>{f_grade_str}</span></div>"
-                        if f_std == "-" and f_perc == "-" and f_grade == "-":
-                            display_str = "-"
+                        if f_std == "-" and f_perc == "-" and f_grade == "-": display_str = "-"
                             
                     body_html += f"<td style='vertical-align:middle;'>{display_str}</td>"
                 body_html += "</tr>"
             body_html += "</table>"
             
-            # 그래프 생성 (탐구 과목 포함한 백분위 그래프 유지, 흑백 구분 포함)
             p_cols = [c for c in uid_mk.columns if '백분' in c]
             if p_cols:
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
@@ -740,6 +790,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 body_html += f"<div style='margin-top:20px; text-align:center;'>{fig_html}</div>"
         else: body_html += "<p>모의고사 기록이 없습니다.</p>"
         body_html += "</div>"
+
     if p_act:
         body_html += """<div class="no-break"><h3>🏆 3. 비교과 창의적 체험활동 역량 균형도</h3>"""
         curr_y = sel_term[:3] if sel_term else ""
@@ -784,7 +835,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
             body_html += f"""<div class="ai-box">{formatted_text}</div>"""
         else:
-            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
+            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 화면 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
         body_html += "</div>"
 
     final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 1000);};</script></body></html>"
