@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (스크롤바 완벽 박멸 CSS)
+# 1. 페이지 설정 및 디자인 (인쇄 페이지 짤림 원천 차단 CSS)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -23,93 +23,60 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄 초정밀 보정 (가짜 스크롤바 삭제 및 페이지 해방) */
+    /* 🖨️ 인쇄 초정밀 보정 (1페이지 짤림 현상 완벽 해결) */
     @media print {
-        /* 1. 이 페이지에 존재하는 '모든' 요소의 스크롤을 무조건 가시화(visible)로 강제 변환 */
-        * {
-            overflow: visible !important;
-            -webkit-overflow-scrolling: auto !important;
-        }
-
-        /* 2. 스트림릿이 억지로 그려넣는 스크롤바 그래픽 자체를 삭제 */
-        ::-webkit-scrollbar {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            opacity: 0 !important;
-        }
-
-        /* 3. 화면을 가두는 모든 스트림릿 최상위 껍데기를 해체하고 블록(Block)으로 나열 */
-        html, body, #root, #root > div, .stApp, 
-        [data-testid="stAppViewContainer"], 
-        [data-testid="stAppViewBlockContainer"], 
-        [data-testid="stMainBlockContainer"],
-        section[data-testid="stMain"], 
-        .main, .block-container {
-            position: relative !important;
-            height: auto !important;
-            min-height: 0 !important;
+        /* 1. 브라우저가 화면을 1장짜리 모니터 창이 아닌 길게 늘어진 종이로 인식하게 설정 */
+        html, body, #root, .stApp {
+            height: 100% !important;
             max-height: none !important;
             overflow: visible !important;
-            display: block !important;
-            width: 100% !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            transform: none !important;
-        }
-
-        /* 4. 체크박스, 버튼, 화면 상단 텍스트 등 화면용 UI를 강제로 멸종시킴 */
-        [data-testid="stSidebar"], 
-        [data-testid="stSidebarCollapseButton"],
-        [data-testid="stHeader"], 
-        [data-testid="stToolbar"], 
-        [data-testid="stDecoration"],
-        [data-testid="stCheckbox"],
-        [data-testid="stButton"],
-        [data-testid="stRadio"],
-        [data-testid="stSelectbox"],
-        .stCheckbox, .stButton, .stRadio, .stSelectbox,
-        header, footer, nav, .print-hide { 
-            display: none !important; 
-            width: 0 !important;
-            height: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
-            visibility: hidden !important;
-            opacity: 0 !important;
-            position: absolute !important;
-            z-index: -9999 !important;
-        }
-
-        /* 5. 배경색 흰색 고정 및 A4 여백 설정 */
-        html, body {
             background-color: #FFFFFF !important;
-            color: #000000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
-        }
-
-        .block-container {
-            padding: 10mm 15mm !important;
         }
         
-        /* 6. 내용물 반토막 방지 */
-        table, tr, td, th, .timeline-card, .stat-box, img,
-        [data-testid="stPlotlyChart"], .js-plotly-plot { 
+        /* 2. [핵심] 스트림릿이 만들어둔 웹 전용 레이아웃 족쇄(flex)를 일반 문서(block)로 강제 변환 */
+        [data-testid="stAppViewContainer"], 
+        [data-testid="stAppViewBlockContainer"], 
+        section[data-testid="stMain"], 
+        .main, .block-container,
+        div[class*="st-emotion-cache"] {
+            display: block !important; /* flex를 block으로 풀어버려야 다음 장으로 넘어감 */
+            position: static !important;
+            height: auto !important;
+            min-height: auto !important;
+            max-height: none !important;
+            overflow: visible !important;
+            transform: none !important;
+            width: 100% !important;
+        }
+
+        /* 3. 사이드바, 헤더 등 인쇄에 필요 없는 모든 메뉴를 가차없이 삭제 */
+        [data-testid="stSidebar"], 
+        header, footer, nav, 
+        [data-testid="stHeader"], 
+        [data-testid="stToolbar"],
+        .print-hide { 
+            display: none !important; 
+        }
+
+        /* 4. 본문 내용이 A4에 딱 맞게 들어가도록 여백 조정 */
+        .block-container {
+            padding: 0 !important;
+            margin: 0 !important;
+        }
+
+        /* 5. 표나 그래프가 1장 끝에서 반토막 나게 찢어지는 현상 철통 방어 */
+        table, tr, td, th, .timeline-card, .stat-box, [data-testid="stPlotlyChart"] { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important;
         }
-        h1, h2, h3, h4 {
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
+        
+        /* 여백 기본 설정 (크롬 인쇄 옵션의 '여백'을 '기본값'으로 맞추시면 됩니다) */
+        @page {
+            margin: 15mm;
         }
     }
 </style>
 """, unsafe_allow_html=True)
-
-def style_centered(df):
-    return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
-
 # ==========================================
 # 2. 보안 설정 (비밀번호)
 # ==========================================
