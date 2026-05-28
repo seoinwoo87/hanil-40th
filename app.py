@@ -650,24 +650,54 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>표시할 성적 데이터가 없습니다.</p>"
         body_html += "</div>"
 
+  # [출력 순서 조정 2] 모의고사 요약 및 추이 (누적표 버전으로 업그레이드)
     if p_mock:
-        body_html += """<div class="no-break"><h3>🎯 2. 수능 전국 모의고사 성적 현황</h3>"""
+        body_html += """<div class="no-break"><h3>🎯 2. 수능 전국 모의고사 누적 성적 현황</h3>"""
         uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
         if not uid_mk.empty:
-            latest = uid_mk.iloc[-1]
-            body_html += f"<p style='font-weight: 700; margin-bottom: 8px;'>📍 가장 최근 시행 시험: {latest.get('시험명', '최근 고사')}</p>"
-            subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
-            body_html += "<table><tr style='background-color: #F8FAFC;'><th>영역</th><th>표준점수</th><th>전국 백분위</th><th>산출 등급</th></tr>"
-            for n, keys in subj_map.items():
-                def f_val(k_list, target_k):
-                    for col in latest.index:
-                        if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
-                    return '-'
-                v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
-                f_perc = f"{float(v_b):.2f}%" if v_b!='-' else "-"
-                f_grade = f"{int(float(v_g))}등급" if v_g!='-' else "-"
-                body_html += f"<tr><td style='font-weight:700; background:#F8FAFC;'>{n}</td><td>{v_p}</td><td style='color:#EA580C; font-weight:700;'>{f_perc}</td><td style='font-weight:700;'>{f_grade}</td></tr>"
+            body_html += f"<p style='font-weight: 700; margin-bottom: 8px;'>📍 모의고사 누적 성적표 (백분위 / 등급)</p>"
+            subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "탐구(사/과)": ["사탐", "사회", "과탐", "과학", "탐구"]}
+            
+            # 누적표 헤더 생성
+            body_html += "<table><tr style='background-color: #F8FAFC;'><th>시험명</th>"
+            for n in subj_map.keys():
+                body_html += f"<th>{n}</th>"
+            body_html += "</tr>"
+            
+            # 각 시험별로 행(Row) 생성
+            for _, row_mk in uid_mk.iterrows():
+                exam_name = row_mk.get('시험명', '-')
+                body_html += f"<tr><td style='font-weight:700; background:#F8FAFC;'>{exam_name}</td>"
+                
+                for n, keys in subj_map.items():
+                    def f_val(k_list, target_k):
+                        for col in row_mk.index:
+                            if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return row_mk[col]
+                        return '-'
+                    
+                    v_b = f_val(keys, '백분')
+                    v_g = f_val(keys, '등급')
+                    
+                    try: f_perc = f"{float(v_b):.1f}%"
+                    except: f_perc = "-"
+                    
+                    try: f_grade = f"{int(float(v_g))}등급"
+                    except: f_grade = "-"
+                    
+                    # 절대평가 과목(영어, 한국사)은 등급만 표시
+                    if n in ["영어", "한국사"]:
+                        display_str = f"<span style='font-weight:700;'>{f_grade}</span>"
+                    else:
+                        display_str = f"<span style='color:#EA580C;'>{f_perc}</span> / <span style='font-weight:700;'>{f_grade}</span>"
+                        
+                    if display_str == "<span style='color:#EA580C;'>-</span> / <span style='font-weight:700;'>-</span>" or display_str == "<span style='font-weight:700;'>-</span>":
+                        display_str = "-"
+                        
+                    body_html += f"<td>{display_str}</td>"
+                body_html += "</tr>"
             body_html += "</table>"
+            
+            # 그래프 생성 (기존 유지)
             p_cols = [c for c in uid_mk.columns if '백분' in c]
             if p_cols:
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
