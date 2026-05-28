@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (인쇄 버그 완전 파괴 CSS)
+# 1. 페이지 설정 및 디자인 (인쇄 버그 멸망 CSS)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -25,32 +25,34 @@ st.markdown("""
 
     /* 🖨️ 인쇄 초정밀 보정 (모든 레이아웃 강제 해체 및 늘리기) */
     @media print {
-        /* 1. 스트림릿의 겹겹이 싸인 컨테이너 족쇄를 완전히 분해합니다 */
+        /* 1. 스트림릿의 모든 족쇄(스크롤 락, 고정 높이)를 강제 파괴하여 다음 페이지로 넘어가게 함 */
         html, body, #root, .stApp, 
         [data-testid="stAppViewContainer"], 
         [data-testid="stAppViewBlockContainer"], 
         section[data-testid="stMain"], 
-        .main, .block-container {
-            position: initial !important;
+        .main, .block-container,
+        div {
+            position: static !important;
             overflow: visible !important;
             height: auto !important;
             min-height: auto !important;
             max-height: none !important;
-            display: block !important;
             transform: none !important;
         }
 
-        /* 2. 인쇄에 방해되는 상단/측면 UI 완벽 삭제 */
-        header, footer, 
-        [data-testid="stHeader"], 
-        [data-testid="stToolbar"], 
-        [data-testid="stDecoration"], 
+        /* 2. 체크박스, 버튼, 사이드바 등 인쇄에 필요 없는 모든 스트림릿 위젯 강제 투명화/제거 */
         [data-testid="stSidebar"], 
         [data-testid="stSidebarCollapseButton"],
-        .print-hide, button { 
+        [data-testid="stCheckbox"],
+        [data-testid="stButton"],
+        [data-testid="stHeader"], 
+        [data-testid="stToolbar"], 
+        header, footer, .print-hide { 
             display: none !important; 
             height: 0 !important;
             width: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
             opacity: 0 !important;
             visibility: hidden !important;
         }
@@ -63,18 +65,20 @@ st.markdown("""
             print-color-adjust: exact !important;
         }
 
-        /* 4. 본문 여백 초기화 */
+        /* 4. 본문 여백 꽉 차게 조절 */
         .block-container {
-            padding: 0mm 10mm !important;
-            margin: 0 !important;
+            padding: 5mm 10mm 15mm 10mm !important;
+            max-width: 100% !important;
+            width: 100% !important;
         }
         
-        /* 5. 표, 컨설팅 카드 등이 페이지 중간에 반토막 나는 현상 철통 방어 */
+        /* 5. 표나 컨설팅 카드 등이 페이지 중간에 반토막 나는 현상 철통 방어 */
         table, tr, td, th, .timeline-card, .stat-box, .js-plotly-plot, img { 
             page-break-inside: avoid !important; 
         }
         h1, h2, h3, h4 {
             page-break-after: avoid !important;
+            page-break-inside: avoid !important;
         }
     }
 </style>
@@ -520,9 +524,8 @@ elif menu == "📝 상담 기록":
 # 11. 🖨️ 맞춤형 리포트 출력 
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
-    st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
-    st.subheader("🌟 학생 종합 컨설팅 생성")
-    st.write("학생의 내신, 모의고사, 비교과 데이터를 융합하여 종합적인 학습 전략을 즉시 도출합니다.")
+    st.markdown("<h3 class='print-hide'>🌟 학생 종합 컨설팅 생성</h3>", unsafe_allow_html=True)
+    st.markdown("<p class='print-hide'>학생의 내신, 모의고사, 비교과 데이터를 융합하여 종합적인 학습 전략을 즉시 도출합니다.</p>", unsafe_allow_html=True)
     
     if st.button("🪄 통합 컨설팅 리포트 생성", use_container_width=True):
         if ai_model:
@@ -561,9 +564,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
         else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
 
-    st.markdown("---")
-    st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
-    st.write("보고서에 포함할 항목을 선택하고 하단에서 확인 후 `Ctrl + P`를 눌러 인쇄하세요.")
+    st.markdown("<hr class='print-hide'>", unsafe_allow_html=True)
+    st.markdown("<h3 class='print-hide'>🖨️ 맞춤형 종합 리포트 출력 옵션</h3>", unsafe_allow_html=True)
+    st.markdown("<p class='print-hide'>보고서에 포함할 항목을 선택하고 하단에서 확인 후 <code>Ctrl + P</code>를 눌러 인쇄하세요.</p>", unsafe_allow_html=True)
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1: p_master = st.checkbox("🌟 학생 종합 컨설팅", value=True)
@@ -571,21 +574,20 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c3: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
     with c4: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
     with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
-    st.markdown("</div>", unsafe_allow_html=True)
-    st.markdown("---")
+    st.markdown("<hr class='print-hide'>", unsafe_allow_html=True)
 
+    # ================= 실제 출력되는 영역 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
+    
     st.markdown(f"""
-    <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
-        <table style="width: 100%; border: none !important; margin: 0 !important; background: transparent !important;">
-            <tr style="border: none !important; background: transparent !important;">
-                <td style="text-align: left !important; font-size: 1.2rem; color: #1E3A8A; font-weight: bold; border: none !important; padding:0 !important; letter-spacing: -0.5px;">한일고등학교 40기 학업 성취 종합 분석</td>
-                <td style="text-align: right !important; font-size: 1rem; color: #64748B; border: none !important; padding:0 !important;">발행일자: {today_str}</td>
-            </tr>
-        </table>
-        <h1 style="text-align: center; color: #0F172A; margin: 30px 0 15px 0; font-weight: 800; font-size: 2.3rem; letter-spacing: -1px;">개별 학생 맞춤형 종합 리포트</h1>
-        <p style="text-align: center; color: #334155; font-size: 1.4rem; font-weight: bold; margin: 0;">[ 학생 현황 : {sel_student} ]</p>
-    </div>
+    <h1 style="text-align: center; color: #0F172A; margin: 0 0 15px 0; font-weight: 800; font-size: 2.5rem; letter-spacing: -1px;">종합 리포트</h1>
+    <table style="width: 100%; border: none !important; border-bottom: 2px solid #1E3A8A !important; margin-bottom: 30px !important;">
+        <tr style="border: none !important; background: transparent !important;">
+            <td style="text-align: left !important; font-size: 1.1rem; color: #1E3A8A; font-weight: bold; border: none !important; padding:0 0 10px 0 !important; letter-spacing: -0.5px;">한일고등학교 40기 학업 성취 종합 분석</td>
+            <td style="text-align: right !important; font-size: 1rem; color: #64748B; border: none !important; padding:0 0 10px 0 !important;">발행일자: {today_str}</td>
+        </tr>
+    </table>
+    <p style="text-align: center; color: #334155; font-size: 1.4rem; font-weight: bold; margin: 0;">[ {sel_student} ]</p>
     """, unsafe_allow_html=True)
 
     if p_master:
@@ -641,7 +643,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 return f"{calc_5_tier(my_s, all_s)}등급 / {calc_9_tier(my_s, all_s)}등급 [{rank}/{total}등]"
                 
             latest_df['등급(예상 등수)'] = latest_df.apply(format_expected_grade, axis=1)
-            
             st.markdown(f"<p style='font-weight: 700; color: #334155; margin-bottom: 8px;'>📍 최근 고사 상세 성적 내역 ({latest_term} {latest_exam})</p>", unsafe_allow_html=True)
             target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급(예상 등수)', '성취도']
             display_cols = list(dict.fromkeys([c for c in target_cols if c in latest_df.columns]))
