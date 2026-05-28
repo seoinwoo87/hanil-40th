@@ -142,7 +142,7 @@ def load_all_data():
             except: return pd.DataFrame()
         dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안"]]
         df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans = dfs
-        if not df_ms.empty and '고유번호' in df_ms.columns:
+        if not df_ms.empty England '고유번호' in df_ms.columns:
             mapping = df_ms[['학번', '고유번호']].drop_duplicates()
             def apply_uid(df):
                 if not df.empty and '학번' in df.columns:
@@ -247,7 +247,7 @@ if menu == "📈 내신 분석":
         f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
         u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
         if not f_df.empty and u_col:
-            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_sheet:=df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
             sel_rows = st.data_editor(f_df[[c for c in ['학기','과목','점수','등급','성취도',u_col,'9등급(자동)'] if c in f_df.columns]], use_container_width=True)
             c_df = sel_rows[sel_rows[u_col].apply(safe_numeric)>0].copy()
             if not c_df.empty:
@@ -325,7 +325,7 @@ elif menu == "🎯 모의고사 분석":
                         if ai_model:
                             with st.spinner("분석 중..."):
                                 it_col = '출제 의도' if '출제 의도' in wrong.columns else ('출제의도' if '출제의도' in wrong.columns else None)
-                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 의도의 문항을 틀렸습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 핵심 취약점과 구체적 보완 전략을 'AI' 단어 없이 개조식(명사형)으로 작성하세요."
+                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 의도의 문항을 틀렸습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 핵심 취약점และ 구체적 보완 전략을 'AI' 단어 없이 개조식(명사형)으로 작성하세요."
                                 try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt).text
                                 except Exception as e: st.error(f"오류: {e}")
                     if cache_key in st.session_state.get("ai_cache", {}):
@@ -484,7 +484,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업 인쇄 기술 & 외계어/버튼 제거)
+# 11. 🖨️ 맞춤형 리포트 출력 
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
@@ -497,8 +497,10 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 uid_scores = df_scores[df_scores['고유번호'] == sel_uid]
                 s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
                 g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
+                
                 uid_mk = df_mock[df_mock['고유번호'] == sel_uid]
                 m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
+                
                 uid_act = df_act[df_act['고유번호'] == sel_uid]
                 a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
                 
@@ -531,14 +533,13 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         st.write("보고서에 포함할 항목을 선택하세요.")
         
     c1, c2, c3, c4, c5 = st.columns(5)
-    with c1: p_master = st.checkbox("🌟 학생 종합 컨설팅", value=True)
-    with c2: p_grade = st.checkbox("📈 내신 요약 및 성적표", value=True)
-    with c3: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
-    with c4: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
-    with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
+    with c1: p_grade = st.checkbox("📈 내신 요약 및 성적표", value=True)
+    with c2: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
+    with c3: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
+    with c4: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
+    with c5: p_master = st.checkbox("🌟 학생 종합 컨설팅(총평/전략)", value=True) # 순서 변경 및 직관성 강화
 
     st.markdown("---")
-    st.info("👇 우측 상단의 파란색 **[🖨️ 인쇄하기]** 버튼을 누르시면 아주 깨끗하게 자동 인쇄 창이 열립니다!")
 
     # ================= 🖨️ 인쇄 전용 100% 퓨어 HTML 빌드 작업 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
@@ -580,17 +581,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     
     body_html = ""
     
-    if p_master:
-        body_html += """<div class="no-break"><h3>💡 1. 담임교사 종합 컨설팅 의견</h3>"""
-        if "master_consulting" in st.session_state.get("ai_cache", {}):
-            formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
-            body_html += f"""<div class="ai-box">{formatted_text}</div>"""
-        else:
-            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 화면 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 결합됩니다.</div>"""
-        body_html += "</div>"
-
+    # [출력 순서 조정 1] 내신 성적 요약 (최상위 배치)
     if p_grade:
-        body_html += """<div class="no-break"><h3>📈 2. 학교 교과 내신 성적 요약</h3>"""
+        body_html += """<div class="no-break"><h3>📈 1. 학교 교과 내신 성적 요약</h3>"""
         uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
         s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
         f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
@@ -643,8 +636,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>표시할 성적 데이터가 없습니다.</p>"
         body_html += "</div>"
 
+    # [출력 순서 조정 2] 모의고사 요약 및 추이
     if p_mock:
-        body_html += """<div class="no-break"><h3>🎯 3. 수능 전국 모의고사 성적 현황</h3>"""
+        body_html += """<div class="no-break"><h3>🎯 2. 수능 전국 모의고사 성적 현황</h3>"""
         uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
         if not uid_mk.empty:
             latest = uid_mk.iloc[-1]
@@ -674,8 +668,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>모의고사 기록이 없습니다.</p>"
         body_html += "</div>"
 
+    # [출력 순서 조정 3] 비교과 핵심역량 분포
     if p_act:
-        body_html += """<div class="no-break"><h3>🏆 4. 비교과 창의적 체험활동 역량 균형도</h3>"""
+        body_html += """<div class="no-break"><h3>🏆 3. 비교과 창의적 체험활동 역량 균형도</h3>"""
         curr_y = sel_term[:3] if sel_term else ""
         t_col = next((c for c in df_act.columns if any(k in c for k in ['학년', '학기', '시기', '연도'])), None)
         u_ac = df_act[(df_act['고유번호'] == sel_uid) & (df_act[t_col].str.contains(curr_y, na=False))].copy() if t_col else df_act[df_act['고유번호'] == sel_uid].copy()
@@ -692,8 +687,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>비교과 기록이 없습니다.</p>"
         body_html += "</div>"
 
+    # [출력 순서 조정 4] 세부 분석 처방전 모아보기
     if p_ai:
-        body_html += """<div class="no-break"><h3>🔍 5. 세부 영역별 피드백 및 처방전</h3>"""
+        body_html += """<div class="no-break"><h3>🔍 4. 세부 영역별 피드백 및 처방전</h3>"""
         if "ai_cache" in st.session_state and len([k for k in st.session_state["ai_cache"].keys() if k != "master_consulting"]) > 0:
             for key, text in st.session_state["ai_cache"].items():
                 if key == "master_consulting": continue
@@ -712,11 +708,21 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>현재 누적 보관된 세부 처방전이 없습니다.</p>"
         body_html += "</div>"
 
-    # [외계어 방지] 스크립트 충돌을 막기 위한 이스케이프 처리
+    # [출력 순서 조정 5] 🌟 담임교사 종합 컨설팅 의견 (최하단 정렬 성공!)
+    if p_master:
+        body_html += """<div class="no-break"><h3>💡 5. 담임교사 종합 컨설팅 의견</h3>"""
+        if "master_consulting" in st.session_state.get("ai_cache", {}):
+            formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
+            body_html += f"""<div class="ai-box">{formatted_text}</div>"""
+        else:
+            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
+        body_html += "</div>"
+
+    # 스크립트 충돌 방지 및 자동 인쇄 작동
     final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 1000);};</script></body></html>"
     safe_html_json = json.dumps(final_html).replace("</script>", "<\\/script>")
     
-    # 🖨️ 우측 상단의 인쇄 버튼 (스트림릿 레이아웃에 직접 표시)
+    # 우측 상단의 인쇄 버튼
     button_html = f"""
     <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
     <div style="text-align: right; padding-top: 5px;">
