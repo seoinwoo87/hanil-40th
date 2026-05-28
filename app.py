@@ -142,7 +142,7 @@ def load_all_data():
             except: return pd.DataFrame()
         dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안"]]
         df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans = dfs
-        if not df_ms.empty England '고유번호' in df_ms.columns:
+        if not df_ms.empty and '고유번호' in df_ms.columns:
             mapping = df_ms[['학번', '고유번호']].drop_duplicates()
             def apply_uid(df):
                 if not df.empty and '학번' in df.columns:
