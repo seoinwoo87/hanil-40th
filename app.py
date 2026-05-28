@@ -477,7 +477,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (마스터 프롬프트 탑재)
+# 11. 🖨️ 맞춤형 리포트 출력 (A4 레포트 스킨 전면 개조)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
@@ -490,10 +490,8 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 uid_scores = df_scores[df_scores['고유번호'] == sel_uid]
                 s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
                 g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
-                
                 uid_mk = df_mock[df_mock['고유번호'] == sel_uid]
                 m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
-                
                 uid_act = df_act[df_act['고유번호'] == sel_uid]
                 a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
                 
@@ -517,9 +515,12 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 - 반드시 간결하고 명확한 '개조식(명사형 종결, ~함, ~임 등)'으로 작성하세요.
                 - 대화형 문구(~해요, ~습니다 등)는 절대 금지합니다.
                 """
-                try: st.session_state["ai_cache"]["master_consulting"] = ai_model.generate_content(master_prompt).text
-                except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
-        else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
+                try: 
+                    st.session_state["ai_cache"]["master_consulting"] = ai_model.generate_content(master_prompt).text
+                except Exception as e: 
+                    st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
+        else: 
+            st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
 
     st.markdown("---")
     st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
@@ -534,31 +535,65 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("---")
 
+    # ================= 🖨️ 실제 인쇄용 초고급 스킨 스타일링 렌더링 영역 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
-    st.markdown(f"<div style='text-align: right; color: #64748B; font-size: 0.9rem; margin-bottom: 5px;'>출력일자: {today_str}</div>", unsafe_allow_html=True)
-    st.markdown(f"<h1 style='text-align: center; color: #0F172A; margin-bottom: 5px; font-weight: 800;'>한일고등학교 40기 상담 자료</h1>", unsafe_allow_html=True)
-    st.markdown(f"<h3 style='text-align: center; color: #1E40AF; margin-bottom: 40px;'>📑 {sel_name} 학생 종합 분석 리포트</h3>", unsafe_allow_html=True)
+    
+    # 상단 헤더 섹션 디자인
+    st.markdown(f"""
+    <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
+        <table style="width: 100%; border: none !important; margin: 0 !important; background: transparent !important;">
+            <tr style="border: none !important; background: transparent !important;">
+                <td style="text-align: left !important; font-size: 1.1rem; color: #1E3A8A; font-weight: bold; border: none !important; padding:0 !important;">한일고등학교 40기 학업 성취 종합 분석</td>
+                <td style="text-align: right !important; font-size: 0.95rem; color: #64748B; border: none !important; padding:0 !important;">발행일자: {today_str}</td>
+            </tr>
+        </table>
+        <h1 style="text-align: center; color: #0F172A; margin: 25px 0 10px 0; font-weight: 800; font-size: 2.4rem; letter-spacing: -1px;">개별 학생 맞춤형 종합 리포트</h1>
+        <p style="text-align: center; color: #2563EB; font-size: 1.3rem; font-weight: 600; margin: 0;">대상 학생: {sel_student} (담임 확인 서명란: &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;)</p>
+    </div>
+    """, unsafe_allow_html=True)
 
+    # 1. 학생 종합 컨설팅 출력 스킨
     if p_master:
+        st.markdown("<h3 style='color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 30px; font-weight: 700;'>💡 1. 담임교사 종합 컨설팅 의견</h3>", unsafe_allow_html=True)
         if "master_consulting" in st.session_state.get("ai_cache", {}):
-            st.markdown("### 🌟 학생 종합 컨설팅")
-            st.markdown(f'<div style="background: #F0F9FF; padding: 20px; border-left: 5px solid #0284C7; border-radius: 10px; margin-bottom: 30px; font-size: 1rem; line-height: 1.8;">{st.session_state["ai_cache"]["master_consulting"]}</div>', unsafe_allow_html=True)
-        else: st.markdown("<div class='print-hide'><p style='color:#EF4444; font-weight:bold;'>👉 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 여기에 컨설팅 결과가 나타납니다.</p></div>", unsafe_allow_html=True)
+            # 줄바꿈과 마크다운 스타일을 HTML 내부에서 깨지지 않게 보정
+            formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
+            st.markdown(f"""
+            <div style="background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 6px solid #2563EB; padding: 22px; border-radius: 8px; font-size: 1rem; line-height: 1.8; color: #1E293B;">
+                {formatted_text}
+            </div>
+            """, unsafe_allow_html=True)
+        else: 
+            st.markdown("<div class='print-hide' style='color:#EF4444; font-weight:bold; padding: 10px; background: #FEF2F2; border-radius: 6px;'>⚠️ 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>", unsafe_allow_html=True)
 
+    # 2. 내신 요약 스킨 (A4 맞춤 표 서식)
     if p_grade:
-        st.markdown("### 📈 내신 성적 요약")
+        st.markdown("<h3 style='color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700;'>📈 2. 학교 교과 내신 성적 요약</h3>", unsafe_allow_html=True)
         uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
         s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
+        
         f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
         u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
+        
         if not f_df.empty and u_col:
-            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_worksheet:=df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
             t_u = f_df[u_col].apply(safe_numeric).sum()
             g5 = (f_df['등급'].apply(safe_numeric)*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
             g9 = (f_df['9등급(자동)']*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
-            sc1, sc2 = st.columns(2)
-            sc1.metric(f"📊 {sel_term} 5등급제 평점", f"{g5:.2f} 등급")
-            sc2.metric(f"📊 {sel_term} 9등급제 평점", f"{g9:.2f} 등급")
+            
+            # 메트릭 인쇄 시 깨짐 방지용 정밀 HTML 스킨
+            st.markdown(f"""
+            <table style="width: 100%; margin-bottom: 20px; border: 1px solid #E2E8F0; border-collapse: collapse;">
+                <tr style="background-color: #F1F5F9;">
+                    <th style="padding: 12px; border: 1px solid #E2E8F0; text-align: center; color: #475569;">📊 {sel_term} 교과 종합 평점 (5등급제 기준)</th>
+                    <th style="padding: 12px; border: 1px solid #E2E8F0; text-align: center; color: #475569;">📊 {sel_term} 교과 종합 평점 (9등급제 시뮬레이션)</th>
+                </tr>
+                <tr>
+                    <td style="padding: 16px; border: 1px solid #E2E8F0; text-align: center; font-size: 1.6rem; font-weight: 800; color: #1E40AF;">{g5:.2f} 등급</td>
+                    <td style="padding: 16px; border: 1px solid #E2E8F0; text-align: center; font-size: 1.6rem; font-weight: 800; color: #0F766E;">{g9:.2f} 등급</td>
+                </tr>
+            </table>
+            """, unsafe_allow_html=True)
         
         uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
         if not uid_scores.empty and uid_scores['순서'].max() > 0:
@@ -576,65 +611,107 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 return f"{calc_5_tier(my_s, all_s)}등급 / {calc_9_tier(my_s, all_s)}등급 [{rank}/{total}등]"
                 
             latest_df['등급(예상 등수)'] = latest_df.apply(format_expected_grade, axis=1)
-            st.markdown(f"<br><b>📍 최근 성적 상세 ({latest_term} {latest_exam})</b>", unsafe_allow_html=True)
+            
+            st.markdown(f"<p style='font-weight: 700; color: #334155; margin-bottom: 8px;'>📍 최근 고사 상세 성적 내역 ({latest_term} {latest_exam})</p>", unsafe_allow_html=True)
             target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급(예상 등수)', '성취도']
             display_cols = list(dict.fromkeys([c for c in target_cols if c in latest_df.columns]))
-            st.table(style_centered(latest_df[display_cols]))
-        else: st.info("표시할 성적 데이터가 없습니다.")
-        st.markdown("<br>", unsafe_allow_html=True)
+            
+            # 표 렌더링을 완전히 깔끔한 레포트 스킨 HTML로 우회 출력
+            table_html = "<table style='width: 100%; border-collapse: collapse; margin-bottom: 25px; border: 1px solid #CBD5E1; font-size: 0.95rem;'>"
+            table_html += "<tr style='background-color: #F8FAFC; border-bottom: 2px solid #94A3B8;'>"
+            for col in display_cols:
+                table_html += f"<th style='padding: 10px; border: 1px solid #CBD5E1; text-align: center; color: #334155; font-weight: 700;'>{col}</th>"
+            table_html += "</tr>"
+            
+            for _, row in latest_df[display_cols].iterrows():
+                table_html += "<tr style='border-bottom: 1px solid #E2E8F0;'>"
+                for col in display_cols:
+                    val = row[col]
+                    val_str = f"{val:.2f}" if isinstance(val, (int, float)) and col == s_col else str(val)
+                    table_html += f"<td style='padding: 10px; border: 1px solid #CBD5E1; text-align: center;'>{val_str}</td>"
+                table_html += "</tr>"
+            table_html += "</table>"
+            st.markdown(table_html, unsafe_allow_html=True)
+        else: 
+            st.info("표시할 성적 데이터가 없습니다.")
 
+    # 3. 모의고사 성적 서식 개조
     if p_mock:
-        st.markdown("### 🎯 모의고사 성적 요약")
+        st.markdown("<h3 style='color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700;'>🎯 3. 수능 전국 모의고사 성적 현황</h3>", unsafe_allow_html=True)
         uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
         if not uid_mk.empty:
             latest = uid_mk.iloc[-1]
-            st.markdown(f"**[{latest.get('시험명', '최근 시험')}]**")
+            st.markdown(f"<p style='font-weight: 700; color: #334155; margin-bottom: 8px;'>📍 가장 최근 시행 시험: {latest.get('시험명', '최근 고사')}</p>", unsafe_allow_html=True)
             subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
-            summary = []
+            
+            m_table_html = "<table style='width: 100%; border-collapse: collapse; margin-bottom: 25px; border: 1px solid #CBD5E1; font-size: 0.95rem;'>"
+            m_table_html += "<tr style='background-color: #F8FAFC; border-bottom: 2px solid #94A3B8;'><th style='padding: 10px; border: 1px solid #CBD5E1;'>영역</th><th style='padding: 10px; border: 1px solid #CBD5E1;'>표준점수</th><th style='padding: 10px; border: 1px solid #CBD5E1;'>전국 백분위</th><th style='padding: 10px; border: 1px solid #CBD5E1;'>산출 등급</th></tr>"
+            
             for n, keys in subj_map.items():
                 def f_val(k_list, target_k):
                     for col in latest.index:
                         if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
                     return '-'
                 v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
-                summary.append({"과목": n, "표준점수": v_p, "백분위": f"{float(v_b):.2f}%" if v_b!='-' else "-", "등급": f"{int(float(v_g))}등급" if v_g!='-' else "-"})
-            st.table(style_centered(pd.DataFrame(summary)))
+                f_perc = f"{float(v_b):.2f}%" if v_b!='-' else "-"
+                f_grade = f"{int(float(v_g))}등급" if v_g!='-' else "-"
+                m_table_html += f"<tr><td style='padding: 10px; border: 1px solid #CBD5E1; font-weight:700; background:#F8FAFC;'>{n}</td><td style='padding: 10px; border: 1px solid #CBD5E1;'>{v_p}</td><td style='padding: 10px; border: 1px solid #CBD5E1; color:#EA580C; font-weight:700;'>{f_perc}</td><td style='padding: 10px; border: 1px solid #CBD5E1; font-weight:700;'>{f_grade}</td></tr>"
+            m_table_html += "</table>"
+            st.markdown(m_table_html, unsafe_allow_html=True)
+            
             p_cols = [c for c in uid_mk.columns if '백분' in c]
             if p_cols:
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
-                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 누적 백분위(%) 추이")
-                fig_m.update_layout(yaxis=dict(range=[0, 105]), height=350)
+                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 성적 등락 추이")
+                fig_m.update_layout(yaxis=dict(range=[0, 105]), height=280, margin=dict(l=20, r=20, t=40, b=20))
                 st.plotly_chart(fig_m, use_container_width=True)
-        st.markdown("<br>", unsafe_allow_html=True)
+        else: 
+            st.info("모의고사 기록이 없습니다.")
 
+    # 4. 비교과 핵심역량 분포 서식 개조
     if p_act:
-        st.markdown("### 🏆 비교과 활동 역량 분포")
+        st.markdown("<h3 style='color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700;'>🏆 4. 비교과 창의적 체험활동 역량 균형도</h3>", unsafe_allow_html=True)
         curr_y = sel_term[:3] if sel_term else ""
         t_col = next((c for c in df_act.columns if any(k in c for k in ['학년', '학기', '시기', '연도'])), None)
         u_ac = df_act[(df_act['고유번호'] == sel_uid) & (df_act[t_col].str.contains(curr_y, na=False))].copy() if t_col else df_act[df_act['고유번호'] == sel_uid].copy()
+        
         if not u_ac.empty:
             col_comp = next((c for c in u_ac.columns if '역량' in c), None)
             comp_standards = ["탐구력/지식정보처리", "창의적 사고", "비판적 사고", "자기주도성/자기관리", "협력적 소통", "공동체 의식/윤리"]
-            s_cols = st.columns(6)
-            for i, comp_name in enumerate(comp_standards):
+            
+            act_table_html = "<table style='width: 100%; border-collapse: collapse; border: 1px solid #CBD5E1;'>"
+            act_table_html += "<tr style='background-color: #F8FAFC;'>"
+            for comp_name in comp_standards:
+                act_table_html += f"<th style='padding: 8px; border: 1px solid #CBD5E1; font-size: 0.8rem; font-weight:700; color:#475569;'>{comp_name}</th>"
+            act_table_html += "</tr><tr>"
+            for comp_name in comp_standards:
                 count = u_ac[col_comp].str.contains(comp_name, na=False).sum() if col_comp else 0
-                with s_cols[i]: st.markdown(f'<div class="stat-box" style="padding:10px;"><small style="color:#64748B; font-size:0.65rem;">{comp_name}</small><br><b style="font-size:1.2rem; color:#2563EB;">{count}건</b></div>', unsafe_allow_html=True)
-        st.markdown("<br><br>", unsafe_allow_html=True)
+                act_table_html += f"<td style='padding: 12px; border: 1px solid #CBD5E1; font-size: 1.2rem; font-weight: 800; color: #2563EB;'>{count}건</td>"
+            act_table_html += "</tr></table>"
+            st.markdown(act_table_html, unsafe_allow_html=True)
 
+    # 5. 세부 처방전 모아보기 스킨 개조
     if p_ai:
-        st.markdown("### 🔍 세부 분석 처방전 모아보기")
+        st.markdown("<h3 style='color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700;'>🔍 5. 세부 영역별 피드백 및 처방전</h3>", unsafe_allow_html=True)
         if "ai_cache" in st.session_state and len([k for k in st.session_state["ai_cache"].keys() if k != "master_consulting"]) > 0:
             for key, text in st.session_state["ai_cache"].items():
                 if key == "master_consulting": continue
-                title = "상세 분석"
-                if "mock_single" in key: title = "단일 모의고사 약점 분석"
-                elif "mock_cum" in key: title = "누적 모의고사 장기 로드맵"
-                elif "ref_" in key: title = "학습 성찰 피드백"
-                elif "act_" in key: title = "비교과 생기부 초안"
-                st.markdown(f"**[{title}]**")
-                st.markdown(f'<div style="background: #F8FAFC; padding: 15px; border-left: 4px solid #64748B; margin-bottom: 20px; font-size: 0.95rem;">{text}</div>', unsafe_allow_html=True)
-        else: st.info("현재 저장된 세부 처방전이 없습니다. 각 탭에서 '분석 생성' 버튼을 누르시면 이곳에 모아 출력됩니다.")
+                title = "학업 역량 정밀 분석"
+                if "mock_single" in key: title = f"모의고사 문항별 취약점 분석 ({key.split('_')[-2]} - {key.split('_')[-1]})"
+                elif "mock_cum" in key: title = f"모의고사 누적 패턴 클러스터링 및 로드맵 ({key.split('_')[-1]})"
+                elif "ref_" in key: title = f"정기 고사 학습 성찰에 대한 피드백 ({key.split('_')[-1]})"
+                elif "act_" in key: title = "비교과 탐구 활동 생기부 연계 초안 문구"
+                
+                formatted_detail = text.replace("\n", "<br>")
+                st.markdown(f"""
+                <div style="margin-bottom: 20px; border: 1px solid #E2E8F0; border-radius: 6px; overflow: hidden;">
+                    <div style="background-color: #F1F5F9; padding: 8px 12px; font-weight: 700; color: #334155; font-size: 0.9rem; border-bottom: 1px solid #E2E8F0;">📌 {title}</div>
+                    <div style="padding: 15px; font-size: 0.9rem; line-height: 1.7; color: #475569; background: #FFFFFF;">{formatted_detail}</div>
+                </div>
+                """, unsafe_allow_html=True)
+        else:
+            st.info("현재 누적 보관된 세부 처방전이 없습니다. 각 분석 메뉴 탭에서 분석 버튼을 누르시면 기록이 유지되어 여기에 함께 결합됩니다.")
 
 # ==========================================
 # 12. 🌟 학급 대시보드 (담임교사 전용)
