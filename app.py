@@ -27,7 +27,7 @@ st.markdown("""
 
     @media print {
         body::before {
-            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 화면 우측 상단의 파란색 [🖨️ 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
+            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 취소를 누르시고, 화면 우측 상단의 파란색 [🖨️ 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
             display: flex;
             justify-content: center;
             align-items: center;
@@ -142,6 +142,8 @@ def load_all_data():
             except: return pd.DataFrame()
         dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안"]]
         df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans = dfs
+        
+        # England 오타 수정 완료 구역!
         if not df_ms.empty and '고유번호' in df_ms.columns:
             mapping = df_ms[['학번', '고유번호']].drop_duplicates()
             def apply_uid(df):
@@ -200,9 +202,15 @@ with st.sidebar:
     sel_uid = class_students[class_students['표시식별'] == sel_student]['고유번호'].iloc[0]
     sel_name = sel_student.split(" ")[1]
     
-    if "current_student" not in st.session_state or st.session_state["current_student"] != sel_uid:
-        st.session_state["current_student"] = sel_uid
-        st.session_state["ai_cache"] = {} 
+    # 🧠 학생별 개별 AI 기억 장치 탑재! (다른 학생 다녀와도 기억 유지됨)
+    if "global_ai_cache" not in st.session_state:
+        st.session_state["global_ai_cache"] = {}
+        
+    if sel_uid not in st.session_state["global_ai_cache"]:
+        st.session_state["global_ai_cache"][sel_uid] = {}
+        
+    st.session_state["ai_cache"] = st.session_state["global_ai_cache"][sel_uid]
+    st.session_state["current_student"] = sel_uid
 
     menu_list = ["📈 내신 분석", "🎯 모의고사 분석", "🧠 성찰 리포트", "🏆 비교과 타임라인", "📝 상담 기록", "🖨️ 맞춤형 리포트 출력", "🌟 학급 대시보드"]
     d_menu_idx = menu_list.index(query_params["menu"]) if "menu" in query_params and query_params["menu"] in menu_list else 0
@@ -247,7 +255,7 @@ if menu == "📈 내신 분석":
         f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
         u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
         if not f_df.empty and u_col:
-            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_sheet:=df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+            f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
             sel_rows = st.data_editor(f_df[[c for c in ['학기','과목','점수','등급','성취도',u_col,'9등급(자동)'] if c in f_df.columns]], use_container_width=True)
             c_df = sel_rows[sel_rows[u_col].apply(safe_numeric)>0].copy()
             if not c_df.empty:
@@ -302,7 +310,14 @@ elif menu == "🎯 모의고사 분석":
             if p_cols:
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
-                st.plotly_chart(px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True).update_layout(yaxis=dict(range=[0, 105])), use_container_width=True)
+                
+                # 웹 화면용 그래프 (흑백 식별 옵션 추가)
+                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), 
+                                x='시험명', y='백분위', color='과목', symbol='과목', line_dash='과목', markers=True)
+                fig_m.update_traces(marker=dict(size=12), line=dict(width=3))
+                fig_m.update_layout(yaxis=dict(range=[0, 105]))
+                st.plotly_chart(fig_m, use_container_width=True)
+                
             st.dataframe(style_centered(uid_mk.drop(columns=['학번', '표시식별', '학생명', '반', '고유번호'], errors='ignore')), use_container_width=True)
         else: st.info("모의고사 기록이 없습니다.")
 
@@ -325,7 +340,7 @@ elif menu == "🎯 모의고사 분석":
                         if ai_model:
                             with st.spinner("분석 중..."):
                                 it_col = '출제 의도' if '출제 의도' in wrong.columns else ('출제의도' if '출제의도' in wrong.columns else None)
-                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 의도의 문항을 틀렸습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 핵심 취약점และ 구체적 보완 전략을 'AI' 단어 없이 개조식(명사형)으로 작성하세요."
+                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 의도의 문항을 틀렸습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 핵심 취약점과 구체적 보완 전략을 'AI' 단어 없이 개조식(명사형)으로 작성하세요."
                                 try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt).text
                                 except Exception as e: st.error(f"오류: {e}")
                     if cache_key in st.session_state.get("ai_cache", {}):
@@ -537,7 +552,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c2: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
     with c3: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
     with c4: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
-    with c5: p_master = st.checkbox("🌟 학생 종합 컨설팅(총평/전략)", value=True) # 순서 변경 및 직관성 강화
+    with c5: p_master = st.checkbox("🌟 학생 종합 컨설팅(총평/전략)", value=True)
 
     st.markdown("---")
 
@@ -581,7 +596,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     
     body_html = ""
     
-    # [출력 순서 조정 1] 내신 성적 요약 (최상위 배치)
     if p_grade:
         body_html += """<div class="no-break"><h3>📈 1. 학교 교과 내신 성적 요약</h3>"""
         uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
@@ -636,7 +650,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>표시할 성적 데이터가 없습니다.</p>"
         body_html += "</div>"
 
-    # [출력 순서 조정 2] 모의고사 요약 및 추이
     if p_mock:
         body_html += """<div class="no-break"><h3>🎯 2. 수능 전국 모의고사 성적 현황</h3>"""
         uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
@@ -660,7 +673,10 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
                 
-                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 성적 등락 추이")
+                # 흑백 인쇄를 위한 마커 및 선 스타일 추가
+                fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), 
+                                x='시험명', y='백분위', color='과목', symbol='과목', line_dash='과목', markers=True, title="모의고사 성적 등락 추이")
+                fig_m.update_traces(marker=dict(size=12), line=dict(width=3))
                 fig_m.update_layout(yaxis=dict(range=[0, 105]), width=700, height=350, margin=dict(l=20, r=20, t=40, b=20))
                 
                 fig_html = fig_m.to_html(full_html=False, include_plotlyjs=False)
@@ -668,7 +684,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>모의고사 기록이 없습니다.</p>"
         body_html += "</div>"
 
-    # [출력 순서 조정 3] 비교과 핵심역량 분포
     if p_act:
         body_html += """<div class="no-break"><h3>🏆 3. 비교과 창의적 체험활동 역량 균형도</h3>"""
         curr_y = sel_term[:3] if sel_term else ""
@@ -687,7 +702,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>비교과 기록이 없습니다.</p>"
         body_html += "</div>"
 
-    # [출력 순서 조정 4] 세부 분석 처방전 모아보기
     if p_ai:
         body_html += """<div class="no-break"><h3>🔍 4. 세부 영역별 피드백 및 처방전</h3>"""
         if "ai_cache" in st.session_state and len([k for k in st.session_state["ai_cache"].keys() if k != "master_consulting"]) > 0:
@@ -708,7 +722,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>현재 누적 보관된 세부 처방전이 없습니다.</p>"
         body_html += "</div>"
 
-    # [출력 순서 조정 5] 🌟 담임교사 종합 컨설팅 의견 (최하단 정렬 성공!)
     if p_master:
         body_html += """<div class="no-break"><h3>💡 5. 담임교사 종합 컨설팅 의견</h3>"""
         if "master_consulting" in st.session_state.get("ai_cache", {}):
@@ -718,11 +731,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
         body_html += "</div>"
 
-    # 스크립트 충돌 방지 및 자동 인쇄 작동
     final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 1000);};</script></body></html>"
     safe_html_json = json.dumps(final_html).replace("</script>", "<\\/script>")
     
-    # 우측 상단의 인쇄 버튼
     button_html = f"""
     <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
     <div style="text-align: right; padding-top: 5px;">
