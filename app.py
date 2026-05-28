@@ -9,33 +9,62 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (인쇄 최적화)
+# 1. 페이지 설정 및 디자인 (인쇄 강제 숨김 강화)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght=400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; background-color: #F8FAFC; }
     .stMetric { background: white; border: 1px solid #E2E8F0; padding: 15px !important; border-radius: 12px !important; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     .timeline-card { background: white; border: 1px solid #E2E8F0; border-radius: 15px; padding: 25px; margin-bottom: 20px; box-shadow: 0 4px 6px rgba(0,0,0,0.03); border-left: 6px solid #2563EB; }
     .badge { display: inline-block; padding: 4px 12px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; background: #EFF6FF; color: #1D4ED8; margin-bottom: 10px; margin-right: 5px; }
-    .ai-container { background: linear-gradient(135deg, #F0F9FF 0%, #E0F2FE 100%); border: 1px solid #BAE6FD; border-radius: 12px; padding: 20px; margin-top: 15px; line-height: 1.8; font-size: 0.95rem; }
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
+
+    /* 🖨️ 인쇄 미리보기 레이아웃 전면 개조 (사이드바 완벽 차단) */
     @media print {
-        [data-testid="stSidebar"] { display: none !important; }
-        header { display: none !important; }
-        .block-container { max-width: 100% !important; padding: 0 !important; margin: 0 !important; }
-        * { -webkit-print-color-adjust: exact !important; print-color-adjust: exact !important; }
-        canvas, .js-plotly-plot { page-break-inside: avoid; }
-        .print-hide { display: none !important; }
+        /* 1. 스트림릿의 사이드바 관련 모든 요소를 클래스명까지 추적해서 강제 삭제 */
+        [data-testid="stSidebar"], 
+        [data-testid="stSidebarCollapseButton"],
+        .stSidebar, 
+        section[data-testid="stSidebar"] {
+            display: none !important;
+            width: 0px !important;
+            visibility: hidden !important;
+        }
+        
+        /* 2. 상단 헤더, 여백 조절용 컴포넌트, 상단 메뉴 싹 제거 */
+        header, .print-hide, button, [data-testid="stForm"], [data-testid="stToolbar"] { 
+            display: none !important; 
+            visibility: hidden !important;
+        }
+        
+        /* 3. 본문 영역이 왼쪽 사이드바가 있던 빈 자리를 채우도록 폭 100% 강제 세팅 */
+        .block-container { 
+            max-width: 100% !important; 
+            width: 100% !important;
+            padding: 15mm 15mm 15mm 15mm !important; 
+            margin: 0 !important; 
+            position: absolute !important;
+            left: 0 !important;
+            top: 0 !important;
+            background-color: #FFFFFF !important;
+        }
+        
+        /* 4. 종이 인쇄 시 텍스트 및 테이블 가독성 확보 */
+        html, body, [class*="css"] { 
+            background-color: #FFFFFF !important; 
+            color: #000000 !important;
+        }
+        
+        .timeline-card, table, .js-plotly-plot, tr { 
+            page-break-inside: avoid !important; 
+        }
     }
 </style>
 """, unsafe_allow_html=True)
-
-def style_centered(df):
-    return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
 
 # ==========================================
 # 2. 보안 설정 (비밀번호)
