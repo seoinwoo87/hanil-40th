@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (스트림릿 족쇄 완벽 파괴 CSS)
+# 1. 페이지 설정 및 디자인 (스크롤바 완벽 박멸 CSS)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -23,22 +23,42 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄 초정밀 보정 (1장 짤림 및 좀비 UI 완벽 박멸) */
+    /* 🖨️ 인쇄 초정밀 보정 (가짜 스크롤바 삭제 및 페이지 해방) */
     @media print {
-        /* 1. 스트림릿의 모든 스크롤/높이 족쇄를 원천적으로 파괴하여 브라우저가 끝까지 인식하게 함 */
-        html, body, #root, .stApp, section, div,
-        [data-testid="stAppViewContainer"], 
-        [data-testid="stAppViewBlockContainer"], 
-        section[data-testid="stMain"], 
-        .main, .block-container {
-            height: auto !important;
-            min-height: auto !important;
-            max-height: none !important;
+        /* 1. 이 페이지에 존재하는 '모든' 요소의 스크롤을 무조건 가시화(visible)로 강제 변환 */
+        * {
             overflow: visible !important;
-            position: static !important;
+            -webkit-overflow-scrolling: auto !important;
         }
 
-        /* 2. 체크박스, 버튼, 화면 상단 텍스트 등 화면용 UI를 강제로 멸종시킴 */
+        /* 2. 스트림릿이 억지로 그려넣는 스크롤바 그래픽 자체를 삭제 */
+        ::-webkit-scrollbar {
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            opacity: 0 !important;
+        }
+
+        /* 3. 화면을 가두는 모든 스트림릿 최상위 껍데기를 해체하고 블록(Block)으로 나열 */
+        html, body, #root, #root > div, .stApp, 
+        [data-testid="stAppViewContainer"], 
+        [data-testid="stAppViewBlockContainer"], 
+        [data-testid="stMainBlockContainer"],
+        section[data-testid="stMain"], 
+        .main, .block-container {
+            position: relative !important;
+            height: auto !important;
+            min-height: 0 !important;
+            max-height: none !important;
+            overflow: visible !important;
+            display: block !important;
+            width: 100% !important;
+            margin: 0 !important;
+            padding: 0 !important;
+            transform: none !important;
+        }
+
+        /* 4. 체크박스, 버튼, 화면 상단 텍스트 등 화면용 UI를 강제로 멸종시킴 */
         [data-testid="stSidebar"], 
         [data-testid="stSidebarCollapseButton"],
         [data-testid="stHeader"], 
@@ -57,17 +77,23 @@ st.markdown("""
             padding: 0 !important;
             visibility: hidden !important;
             opacity: 0 !important;
+            position: absolute !important;
+            z-index: -9999 !important;
         }
 
-        /* 3. 본문 영역을 A4 용지에 맞게 좌우 꽉 차게 펼침 */
+        /* 5. 배경색 흰색 고정 및 A4 여백 설정 */
+        html, body {
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
         .block-container {
-            padding: 0 !important;
-            margin: 0 auto !important;
-            max-width: 100% !important;
-            width: 100% !important;
+            padding: 10mm 15mm !important;
         }
         
-        /* 4. 표, 컨설팅 카드, 그래프가 페이지 경계선에서 반토막 나는 현상 방지 */
+        /* 6. 내용물 반토막 방지 */
         table, tr, td, th, .timeline-card, .stat-box, img,
         [data-testid="stPlotlyChart"], .js-plotly-plot { 
             page-break-inside: avoid !important; 
@@ -76,14 +102,6 @@ st.markdown("""
         h1, h2, h3, h4 {
             page-break-after: avoid !important;
             page-break-inside: avoid !important;
-        }
-        
-        /* 5. 배경색 강제 하얀색 보정 (회색 그림자 제거) */
-        html, body {
-            background-color: #FFFFFF !important;
-            color: #000000 !important;
-            -webkit-print-color-adjust: exact !important;
-            print-color-adjust: exact !important;
         }
     }
 </style>
@@ -530,7 +548,7 @@ elif menu == "📝 상담 기록":
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
-    # === 인쇄 시 숨겨지는 상단 UI 메뉴들 ===
+    # 🖨️ 인쇄 시 숨겨지는 상단 UI 메뉴들
     st.markdown("""
     <div class='print-hide'>
         <h3 style='color: #1E40AF; margin-bottom: 5px;'>🌟 학생 종합 컨설팅 생성</h3>
@@ -592,11 +610,11 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
 
     st.markdown("<hr class='print-hide' style='margin: 30px 0;'>", unsafe_allow_html=True)
 
-    # ================= 🖨️ 인쇄용 메인 리포트 양식 시작 =================
+    # ================= 🖨️ 인쇄용 메인 리포트 양식 시작 (서식 수정 완료) =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     st.markdown(f"""
-    <h1 style="text-align: center; color: #0F172A; margin: 0 0 15px 0; font-weight: 800; font-size: 2.5rem; letter-spacing: -1px;">개별 맞춤형 종합 리포트</h1>
+    <h1 style="text-align: center; color: #0F172A; margin: 0 0 15px 0; font-weight: 800; font-size: 2.5rem; letter-spacing: -1px;">종합 리포트</h1>
     <table style="width: 100%; border: none !important; border-bottom: 2px solid #1E3A8A !important; margin-bottom: 30px !important;">
         <tr style="border: none !important; background: transparent !important;">
             <td style="text-align: left !important; font-size: 1.1rem; color: #1E3A8A; font-weight: bold; border: none !important; padding:0 0 10px 0 !important; letter-spacing: -0.5px;">한일고등학교 40기 학업 성취 종합 분석</td>
