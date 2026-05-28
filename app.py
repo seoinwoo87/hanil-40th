@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (인쇄 버그 멸망 CSS)
+# 1. 페이지 설정 및 디자인 (정밀 타격 CSS 적용)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -23,36 +23,34 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄 초정밀 보정 (모든 레이아웃 강제 해체 및 늘리기) */
+    /* 🖨️ 인쇄 초정밀 보정 */
     @media print {
-        /* 1. 스트림릿의 모든 족쇄(스크롤 락, 고정 높이)를 강제 파괴하여 다음 페이지로 넘어가게 함 */
+        /* 1. 그래프(Plotly)를 망가뜨리던 일반 div 설정 제거. 오직 '최상위 틀'만 타겟팅하여 스크롤 락 해제 */
         html, body, #root, .stApp, 
         [data-testid="stAppViewContainer"], 
         [data-testid="stAppViewBlockContainer"], 
         section[data-testid="stMain"], 
         .main, .block-container,
-        div {
+        /* 스트림릿 내부 난수 클래스 족쇄 강제 해제 */
+        [class*="st-emotion-cache"] {
             position: static !important;
             overflow: visible !important;
             height: auto !important;
-            min-height: auto !important;
+            min-height: 0 !important;
             max-height: none !important;
-            transform: none !important;
         }
 
-        /* 2. 체크박스, 버튼, 사이드바 등 인쇄에 필요 없는 모든 스트림릿 위젯 강제 투명화/제거 */
+        /* 2. 인쇄 방해 요소 (메뉴, 버튼, 헤더 등) 완벽 제거 */
         [data-testid="stSidebar"], 
         [data-testid="stSidebarCollapseButton"],
-        [data-testid="stCheckbox"],
-        [data-testid="stButton"],
+        header, footer, 
         [data-testid="stHeader"], 
         [data-testid="stToolbar"], 
-        header, footer, .print-hide { 
+        [data-testid="stDecoration"], 
+        .print-hide { 
             display: none !important; 
             height: 0 !important;
             width: 0 !important;
-            margin: 0 !important;
-            padding: 0 !important;
             opacity: 0 !important;
             visibility: hidden !important;
         }
@@ -65,20 +63,21 @@ st.markdown("""
             print-color-adjust: exact !important;
         }
 
-        /* 4. 본문 여백 꽉 차게 조절 */
+        /* 4. 본문 여백 꽉 차게 조절 (모니터 중앙 정렬 해제) */
         .block-container {
-            padding: 5mm 10mm 15mm 10mm !important;
+            padding: 0mm 5mm !important;
+            margin: 0 !important;
             max-width: 100% !important;
             width: 100% !important;
         }
         
-        /* 5. 표나 컨설팅 카드 등이 페이지 중간에 반토막 나는 현상 철통 방어 */
-        table, tr, td, th, .timeline-card, .stat-box, .js-plotly-plot, img { 
+        /* 5. 표나 그래프가 중간에 반토막 나는 것 방지 */
+        table, tr, td, th, .timeline-card, .stat-box, [data-testid="stPlotlyChart"] { 
             page-break-inside: avoid !important; 
+            break-inside: avoid !important;
         }
-        h1, h2, h3, h4 {
+        h2, h3 {
             page-break-after: avoid !important;
-            page-break-inside: avoid !important;
         }
     }
 </style>
@@ -332,7 +331,7 @@ elif menu == "🎯 모의고사 분석":
                         if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
                     return '-'
                 v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
-                summary.append({"과목": n, "표준점수": v_p, "백분위": f"{float(v_b):.2f}%" if v_b!='-' else "-", "등급": f"{int(float(v_g))}등급" if v_g!='-' else "-"})
+                summary.append({"과목": n, "표준점수": v_p, "백분위": v_b if v_b=='-' else f"{v_b}%", "등급": v_g if v_g=='-' else f"{v_g}등급"})
             st.table(style_centered(pd.DataFrame(summary)))
             st.markdown("---")
             p_cols = [c for c in uid_mk.columns if '백분' in c]
@@ -524,8 +523,9 @@ elif menu == "📝 상담 기록":
 # 11. 🖨️ 맞춤형 리포트 출력 
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
-    st.markdown("<h3 class='print-hide'>🌟 학생 종합 컨설팅 생성</h3>", unsafe_allow_html=True)
-    st.markdown("<p class='print-hide'>학생의 내신, 모의고사, 비교과 데이터를 융합하여 종합적인 학습 전략을 즉시 도출합니다.</p>", unsafe_allow_html=True)
+    st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
+    st.subheader("🌟 학생 종합 컨설팅 생성")
+    st.write("학생의 내신, 모의고사, 비교과 데이터를 융합하여 종합적인 학습 전략을 즉시 도출합니다.")
     
     if st.button("🪄 통합 컨설팅 리포트 생성", use_container_width=True):
         if ai_model:
@@ -564,9 +564,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
         else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
 
-    st.markdown("<hr class='print-hide'>", unsafe_allow_html=True)
-    st.markdown("<h3 class='print-hide'>🖨️ 맞춤형 종합 리포트 출력 옵션</h3>", unsafe_allow_html=True)
-    st.markdown("<p class='print-hide'>보고서에 포함할 항목을 선택하고 하단에서 확인 후 <code>Ctrl + P</code>를 눌러 인쇄하세요.</p>", unsafe_allow_html=True)
+    st.markdown("---")
+    st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
+    st.write("보고서에 포함할 항목을 선택하고 하단에서 확인 후 `Ctrl + P`를 눌러 인쇄하세요.")
 
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1: p_master = st.checkbox("🌟 학생 종합 컨설팅", value=True)
@@ -574,7 +574,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c3: p_mock = st.checkbox("🎯 모의고사 요약 및 추이", value=True)
     with c4: p_act = st.checkbox("🏆 비교과 핵심역량 분포", value=True)
     with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
-    st.markdown("<hr class='print-hide'>", unsafe_allow_html=True)
+    st.markdown("</div>", unsafe_allow_html=True)
 
     # ================= 실제 출력되는 영역 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
