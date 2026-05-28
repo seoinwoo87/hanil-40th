@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (스트림릿 인쇄 버그 완전 파괴 CSS)
+# 1. 페이지 설정 및 디자인 (인쇄 버그 완전 파괴 CSS)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -25,58 +25,56 @@ st.markdown("""
 
     /* 🖨️ 인쇄 초정밀 보정 (모든 레이아웃 강제 해체 및 늘리기) */
     @media print {
-        /* 1. 웹페이지의 모든 요소의 스크롤 락과 높이 제한을 무조건 해제 */
-        *, *::before, *::after {
+        /* 1. 스트림릿의 겹겹이 싸인 컨테이너 족쇄를 완전히 분해합니다 */
+        html, body, #root, .stApp, 
+        [data-testid="stAppViewContainer"], 
+        [data-testid="stAppViewBlockContainer"], 
+        section[data-testid="stMain"], 
+        .main, .block-container {
+            position: initial !important;
             overflow: visible !important;
             height: auto !important;
+            min-height: auto !important;
             max-height: none !important;
-            box-shadow: none !important;
-        }
-
-        /* 2. 스트림릿 특유의 웹 레이아웃(Flex, Absolute)을 모두 Block으로 파괴 */
-        html, body, #root, .stApp, [data-testid="stAppViewContainer"], 
-        section[data-testid="stMain"], .main, .block-container,
-        [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"], div {
             display: block !important;
-            position: relative !important;
-            width: 100% !important;
-            max-width: 100% !important;
-            margin: 0 !important;
             transform: none !important;
         }
 
-        /* 3. 사이드바, 헤더, 빈 공간, 버튼 등 인쇄 불필요 요소의 완벽한 멸종 */
+        /* 2. 인쇄에 방해되는 상단/측면 UI 완벽 삭제 */
+        header, footer, 
+        [data-testid="stHeader"], 
+        [data-testid="stToolbar"], 
+        [data-testid="stDecoration"], 
         [data-testid="stSidebar"], 
         [data-testid="stSidebarCollapseButton"],
-        header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], 
-        .print-hide, button, [data-testid="stForm"] { 
+        .print-hide, button { 
             display: none !important; 
             height: 0 !important;
             width: 0 !important;
             opacity: 0 !important;
             visibility: hidden !important;
         }
-        
-        /* 4. 본문 영역을 A4 용지에 꽉 차게 셋팅 (패딩 조절) */
-        .block-container { 
-            padding: 5mm 15mm 15mm 15mm !important; 
-        }
-        
-        /* 5. 표나 컨설팅 카드, 그래프가 페이지 중간에 반토막 나는 현상 철통 방어 */
-        table, tr, td, th, .timeline-card, .stat-box, .js-plotly-plot, img { 
-            page-break-inside: avoid !important; 
-        }
-        h1, h2, h3, h4, h5 {
-            page-break-after: avoid !important;
-            page-break-inside: avoid !important;
-        }
-        
-        /* 바탕색 및 글자색 강제 초기화 */
+
+        /* 3. 배경색 강제 흰색 보정 */
         html, body {
             background-color: #FFFFFF !important;
             color: #000000 !important;
             -webkit-print-color-adjust: exact !important;
             print-color-adjust: exact !important;
+        }
+
+        /* 4. 본문 여백 초기화 */
+        .block-container {
+            padding: 0mm 10mm !important;
+            margin: 0 !important;
+        }
+        
+        /* 5. 표, 컨설팅 카드 등이 페이지 중간에 반토막 나는 현상 철통 방어 */
+        table, tr, td, th, .timeline-card, .stat-box, .js-plotly-plot, img { 
+            page-break-inside: avoid !important; 
+        }
+        h1, h2, h3, h4 {
+            page-break-after: avoid !important;
         }
     }
 </style>
@@ -330,7 +328,7 @@ elif menu == "🎯 모의고사 분석":
                         if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
                     return '-'
                 v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
-                summary.append({"과목": n, "표준점수": v_p, "백분위": v_b if v_b=='-' else f"{v_b}%", "등급": v_g if v_g=='-' else f"{v_g}등급"})
+                summary.append({"과목": n, "표준점수": v_p, "백분위": f"{float(v_b):.2f}%" if v_b!='-' else "-", "등급": f"{int(float(v_g))}등급" if v_g!='-' else "-"})
             st.table(style_centered(pd.DataFrame(summary)))
             st.markdown("---")
             p_cols = [c for c in uid_mk.columns if '백분' in c]
