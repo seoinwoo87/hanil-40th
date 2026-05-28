@@ -9,7 +9,7 @@ import re
 import datetime
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (인쇄 페이지 짤림 해결 및 완전 초기화)
+# 1. 페이지 설정 및 디자인 (스트림릿 인쇄 버그 완전 파괴 CSS)
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -23,49 +23,60 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 인쇄 초정밀 보정 (스크롤 가두는 상위 틀 전면 해제) */
+    /* 🖨️ 인쇄 초정밀 보정 (모든 레이아웃 강제 해체 및 늘리기) */
     @media print {
-        /* 스트림릿이 화면을 가두는 모든 DOM 컨테이너 레이어의 높이 제한 해제 */
-        html, body, 
-        [data-testid="stAppViewContainer"], 
-        [data-testid="stMainHotkeysContainer"],
-        .main, .block-container,
-        [class*="st-emotion-cache"] {
+        /* 1. 웹페이지의 모든 요소의 스크롤 락과 높이 제한을 무조건 해제 */
+        *, *::before, *::after {
             overflow: visible !important;
             height: auto !important;
-            min-height: 100% !important;
             max-height: none !important;
-            position: static !important;
+            box-shadow: none !important;
         }
 
-        /* 사이드바 및 인쇄 불필요 요소 제거 */
+        /* 2. 스트림릿 특유의 웹 레이아웃(Flex, Absolute)을 모두 Block으로 파괴 */
+        html, body, #root, .stApp, [data-testid="stAppViewContainer"], 
+        section[data-testid="stMain"], .main, .block-container,
+        [data-testid="stVerticalBlock"], [data-testid="stHorizontalBlock"], div {
+            display: block !important;
+            position: relative !important;
+            width: 100% !important;
+            max-width: 100% !important;
+            margin: 0 !important;
+            transform: none !important;
+        }
+
+        /* 3. 사이드바, 헤더, 빈 공간, 버튼 등 인쇄 불필요 요소의 완벽한 멸종 */
         [data-testid="stSidebar"], 
         [data-testid="stSidebarCollapseButton"],
-        .stSidebar, 
-        section[data-testid="stSidebar"],
-        header, .print-hide, button, [data-testid="stForm"], [data-testid="stToolbar"] { 
+        header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], 
+        .print-hide, button, [data-testid="stForm"] { 
             display: none !important; 
+            height: 0 !important;
+            width: 0 !important;
+            opacity: 0 !important;
             visibility: hidden !important;
-            height: 0px !important;
         }
         
-        /* 인쇄 본문 폭 여백 최적화 */
+        /* 4. 본문 영역을 A4 용지에 꽉 차게 셋팅 (패딩 조절) */
         .block-container { 
-            max-width: 100% !important; 
-            width: 100% !important;
-            padding: 10mm 15mm 15mm 15mm !important; 
-            margin: 0 !important; 
-            background-color: #FFFFFF !important;
+            padding: 5mm 15mm 15mm 15mm !important; 
         }
         
-        html, body { 
-            background-color: #FFFFFF !important; 
-            color: #000000 !important;
-        }
-        
-        /* 내용이 페이지 경계선에서 반토막 나는 현상 방지 */
-        .timeline-card, table, .js-plotly-plot, tr, div { 
+        /* 5. 표나 컨설팅 카드, 그래프가 페이지 중간에 반토막 나는 현상 철통 방어 */
+        table, tr, td, th, .timeline-card, .stat-box, .js-plotly-plot, img { 
             page-break-inside: avoid !important; 
+        }
+        h1, h2, h3, h4, h5 {
+            page-break-after: avoid !important;
+            page-break-inside: avoid !important;
+        }
+        
+        /* 바탕색 및 글자색 강제 초기화 */
+        html, body {
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
         }
     }
 </style>
@@ -370,8 +381,8 @@ elif menu == "🎯 모의고사 분석":
                     if not ex_i.empty:
                         ex_i['채점결과'] = [ox_list[i] if i < len(ox_list) else 'X' for i in range(len(ex_i))]
                         wrong_df = ex_i[ex_i['채점결과'] == 'X']
-                        it_col = '출제 의도' if '출제 의도' in wrong_df.columns else ('출제의도' if '출제의도' in wrong_df.columns else None)
-                        if it_col: all_wrong_intents.extend(wrong_df[it_col].dropna().astype(str).tolist())
+                        intent_col = '출제 의도' if '출제 의도' in wrong_df.columns else ('출제의도' if '출제의도' in wrong_df.columns else None)
+                        if intent_col: all_wrong_intents.extend(wrong_df[intent_col].dropna().astype(str).tolist())
                 if not all_wrong_intents: st.success("누적된 오답 기록이 없습니다.")
                 else:
                     st.info(", ".join(all_wrong_intents))
@@ -508,7 +519,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (마스터 프롬프트 탑재)
+# 11. 🖨️ 맞춤형 리포트 출력 
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("<div class='print-hide'>", unsafe_allow_html=True)
@@ -565,9 +576,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     st.markdown("</div>", unsafe_allow_html=True)
     st.markdown("---")
 
-    # ================= 실제 출력되는 영역 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
-    
     st.markdown(f"""
     <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
         <table style="width: 100%; border: none !important; margin: 0 !important; background: transparent !important;">
@@ -693,6 +702,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         curr_y = sel_term[:3] if sel_term else ""
         t_col = next((c for c in df_act.columns if any(k in c for k in ['학년', '학기', '시기', '연도'])), None)
         u_ac = df_act[(df_act['고유번호'] == sel_uid) & (df_act[t_col].str.contains(curr_y, na=False))].copy() if t_col else df_act[df_act['고유번호'] == sel_uid].copy()
+        
         if not u_ac.empty:
             col_comp = next((c for c in u_ac.columns if '역량' in c), None)
             comp_standards = ["탐구력/지식정보처리", "창의적 사고", "비판적 사고", "자기주도성/자기관리", "협력적 소통", "공동체 의식/윤리"]
