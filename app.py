@@ -881,11 +881,16 @@ elif menu == "🌟 학급 대시보드":
     if check_dashboard_password():
         st.markdown(f"<h2 style='color: #1E40AF;'>🌟 {sel_term} {sel_class} 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
         st.info("💡 학년부장 선생님을 위한 학급 전체 요약 현황입니다.")
+        
+        # 💡 [버그 수정] 과목별로 나뉘어 있던 줄에서 '유일한 학생 목록'만 뽑아내기!
+        unique_students = class_students[['학번', '학생명', '고유번호']].drop_duplicates()
+        
         counsel_summary = []
-        for _, stu_row in class_students.iterrows():
+        for _, stu_row in unique_students.iterrows():
             uid = stu_row['고유번호']
             stu_name = stu_row['학생명']
             stu_hakbun = str(stu_row['학번'])
+            
             u_cs = df_counsel[df_counsel['고유번호']==uid] if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번'].astype(str)==stu_hakbun]
             if not u_cs.empty and '상담일자' in u_cs.columns:
                 last_date = u_cs['상담일자'].max()
@@ -893,16 +898,18 @@ elif menu == "🌟 학급 대시보드":
             else:
                 last_date = "-"
                 count = 0
+                
             u_ac = df_act[df_act['고유번호']==uid]
             act_count = len(u_ac)
+            
             counsel_summary.append({"학번": stu_hakbun, "이름": stu_name, "누적 상담(건)": count, "최근 상담일": last_date, "비교과 활동(건)": act_count})
         
         dash_df = pd.DataFrame(counsel_summary).sort_values('학번')
         c1, c2, c3 = st.columns(3)
-        c1.metric("👩‍🎓 우리 반 총 인원", f"{len(dash_df)}명")
+        c1.metric("👩‍🎓 학생 총 인원", f"{len(dash_df)}명")
         c2.metric("🗣️ 상담 진행 학생 (1회 이상)", f"{len(dash_df[dash_df['누적 상담(건)'] > 0])}명")
         c3.metric("🏆 비교과 최다 활동 학생", f"{dash_df.sort_values('비교과 활동(건)', ascending=False).iloc[0]['이름']} ({dash_df['비교과 활동(건)'].max()}건)" if not dash_df.empty and dash_df['비교과 활동(건)'].max() > 0 else "-")
         
         st.markdown("---")
-        st.subheader("📋 우리 반 학생 개별 현황표")
+        st.subheader("📋 개별 학생 현황표")
         st.dataframe(style_centered(dash_df), use_container_width=True, height=500)
