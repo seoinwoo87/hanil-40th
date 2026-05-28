@@ -25,21 +25,21 @@ st.markdown("""
 
     /* 🖨️ 인쇄 초정밀 보정 (1페이지 짤림 현상 완벽 해결) */
     @media print {
-        /* 1. 브라우저가 화면을 1장짜리 모니터 창이 아닌 길게 늘어진 종이로 인식하게 설정 */
-        html, body, #root, .stApp {
-            height: 100% !important;
-            max-height: none !important;
+        /* 1. 이 페이지에 존재하는 '모든' 요소의 스크롤과 높이 제한을 무조건 파괴합니다 */
+        * {
             overflow: visible !important;
-            background-color: #FFFFFF !important;
+            max-height: none !important;
+            height: auto !important;
         }
-        
-        /* 2. [핵심] 스트림릿이 만들어둔 웹 전용 레이아웃 족쇄(flex)를 일반 문서(block)로 강제 변환 */
+
+        /* 2. 스트림릿 최상위 프레임들의 절대 좌표와 고정 레이아웃을 일반 문서(block)로 강제 변환 */
+        html, body, #root, .stApp, 
         [data-testid="stAppViewContainer"], 
         [data-testid="stAppViewBlockContainer"], 
         section[data-testid="stMain"], 
         .main, .block-container,
         div[class*="st-emotion-cache"] {
-            display: block !important; /* flex를 block으로 풀어버려야 다음 장으로 넘어감 */
+            display: block !important; 
             position: static !important;
             height: auto !important;
             min-height: auto !important;
@@ -49,13 +49,21 @@ st.markdown("""
             width: 100% !important;
         }
 
-        /* 3. 사이드바, 헤더 등 인쇄에 필요 없는 모든 메뉴를 가차없이 삭제 */
+        /* 3. 사이드바, 헤더, 옵션 위젯 등 인쇄에 필요 없는 모든 요소를 가차없이 삭제 */
         [data-testid="stSidebar"], 
-        header, footer, nav, 
+        [data-testid="stSidebarCollapseButton"],
         [data-testid="stHeader"], 
         [data-testid="stToolbar"],
+        [data-testid="stCheckbox"],
+        [data-testid="stButton"],
+        header, footer, nav, 
         .print-hide { 
             display: none !important; 
+            visibility: hidden !important;
+            width: 0 !important;
+            height: 0 !important;
+            margin: 0 !important;
+            padding: 0 !important;
         }
 
         /* 4. 본문 내용이 A4에 딱 맞게 들어가도록 여백 조정 */
@@ -64,19 +72,34 @@ st.markdown("""
             margin: 0 !important;
         }
 
-        /* 5. 표나 그래프가 1장 끝에서 반토막 나게 찢어지는 현상 철통 방어 */
-        table, tr, td, th, .timeline-card, .stat-box, [data-testid="stPlotlyChart"] { 
+        /* 5. 배경색 강제 흰색 보정 */
+        html, body {
+            background-color: #FFFFFF !important;
+            color: #000000 !important;
+            -webkit-print-color-adjust: exact !important;
+            print-color-adjust: exact !important;
+        }
+
+        /* 6. 표나 그래프가 1장 끝에서 반토막 나게 찢어지는 현상 철통 방어 */
+        table, tr, td, th, .timeline-card, .stat-box, [data-testid="stPlotlyChart"], img { 
             page-break-inside: avoid !important; 
             break-inside: avoid !important;
         }
         
-        /* 여백 기본 설정 (크롬 인쇄 옵션의 '여백'을 '기본값'으로 맞추시면 됩니다) */
+        h1, h2, h3, h4 {
+            page-break-after: avoid !important;
+        }
+        
         @page {
             margin: 15mm;
         }
     }
 </style>
 """, unsafe_allow_html=True)
+
+def style_centered(df):
+    return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+
 # ==========================================
 # 2. 보안 설정 (비밀번호)
 # ==========================================
@@ -515,7 +538,7 @@ elif menu == "📝 상담 기록":
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
-    # 🖨️ 인쇄 시 숨겨지는 상단 UI 메뉴들
+    # === 인쇄 시 완전히 사라지는 화면 전용 UI 영역 ===
     st.markdown("""
     <div class='print-hide'>
         <h3 style='color: #1E40AF; margin-bottom: 5px;'>🌟 학생 종합 컨설팅 생성</h3>
@@ -523,6 +546,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     </div>
     """, unsafe_allow_html=True)
     
+    # 컨설팅 생성 버튼
     if st.button("🪄 통합 컨설팅 리포트 생성", use_container_width=True):
         if ai_model:
             with st.spinner("학생의 모든 데이터를 통합 분석 중입니다..."):
@@ -560,6 +584,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 except Exception as e: st.error(f"컨설팅 생성 중 오류가 발생했습니다: {e}")
         else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
 
+    # 출력 옵션 체크박스 영역
     st.markdown("""
     <div class='print-hide'>
         <hr style='margin: 30px 0;'>
@@ -576,12 +601,13 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
 
     st.markdown("<hr class='print-hide' style='margin: 30px 0;'>", unsafe_allow_html=True)
+    # === 인쇄 시 완전히 사라지는 화면 전용 UI 영역 끝 ===
 
-    # ================= 🖨️ 인쇄용 메인 리포트 양식 시작 (서식 수정 완료) =================
+    # ================= 🖨️ 인쇄용 메인 리포트 양식 시작 (서식 수정 및 타이틀 상단 배치) =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     st.markdown(f"""
-    <h1 style="text-align: center; color: #0F172A; margin: 0 0 15px 0; font-weight: 800; font-size: 2.5rem; letter-spacing: -1px;">종합 리포트</h1>
+    <h1 style="text-align: center; color: #0F172A; margin: 0 0 15px 0; font-weight: 800; font-size: 2.5rem; letter-spacing: -1px;">개별 맞춤형 종합 리포트</h1>
     <table style="width: 100%; border: none !important; border-bottom: 2px solid #1E3A8A !important; margin-bottom: 30px !important;">
         <tr style="border: none !important; background: transparent !important;">
             <td style="text-align: left !important; font-size: 1.1rem; color: #1E3A8A; font-weight: bold; border: none !important; padding:0 0 10px 0 !important; letter-spacing: -0.5px;">한일고등학교 40기 학업 성취 종합 분석</td>
