@@ -7,10 +7,11 @@ import gspread
 from oauth2client.service_account import ServiceAccountCredentials
 import re
 import datetime
+import json
 import streamlit.components.v1 as components
 
 # ==========================================
-# 1. 페이지 설정 및 디자인 (Ctrl+P 오작동 차단 안내)
+# 1. 페이지 설정 및 디자인
 # ==========================================
 st.set_page_config(page_title="한일고 40기 상담 시스템", layout="wide")
 
@@ -24,16 +25,22 @@ st.markdown("""
     .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 10px; padding: 15px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
     table, th, td { text-align: center !important; }
 
-    /* 🖨️ 단축키(Ctrl+P) 인쇄 시 화면을 지우고 경고 문구 표시 */
     @media print {
         body::before {
-            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 취소를 누르시고, 하단의 파란색 [🖨️ 여기서 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
-            display: block;
-            font-size: 22px;
+            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 취소를 누르시고, 화면 우측 상단의 파란색 [🖨️ 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-size: 26px;
             font-weight: bold;
-            color: red;
+            color: white;
+            background-color: #EF4444;
             text-align: center;
-            margin-top: 100px;
+            padding: 20px;
+            z-index: 999999;
+            position: fixed;
+            top: 0; left: 0; width: 100vw;
         }
         [data-testid="stAppViewContainer"] { display: none !important; }
     }
@@ -477,7 +484,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (플랜 B: 아이프레임 팝업 인쇄 기술)
+# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업 인쇄 기술 & 우측 상단 버튼)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
@@ -517,9 +524,13 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: st.warning("AI 모델을 사용할 수 없습니다. 인터넷 연결과 API 키를 확인해주세요.")
 
     st.markdown("---")
-    st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
-    st.write("보고서에 포함할 항목을 선택하세요.")
-
+    
+    # === 우측 상단 인쇄 버튼 레이아웃 ===
+    col_title, col_print_btn = st.columns([4, 1])
+    with col_title:
+        st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
+        st.write("보고서에 포함할 항목을 선택하세요.")
+        
     c1, c2, c3, c4, c5 = st.columns(5)
     with c1: p_master = st.checkbox("🌟 학생 종합 컨설팅", value=True)
     with c2: p_grade = st.checkbox("📈 내신 요약 및 성적표", value=True)
@@ -528,7 +539,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
 
     st.markdown("---")
-    st.info("👇 아래 미리보기 창 안쪽에 있는 파란색 **[🖨️ 여기서 인쇄하기]** 버튼을 누르시면, 체크박스나 불필요한 위젯 없이 아주 깨끗하게 다중 페이지로 자동 인쇄됩니다!")
 
     # ================= 🖨️ 인쇄 전용 독립 HTML (iframe) 빌드 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
@@ -538,11 +548,12 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     <html lang="ko">
     <head>
         <meta charset="UTF-8">
+        <title>맞춤형 종합 리포트</title>
         <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
         <style>
             @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@400;600;800&display=swap');
-            body {{ font-family: 'Pretendard', sans-serif; color: #0F172A; line-height: 1.6; margin: 0; padding: 20px; background: #FFFFFF; }}
-            h3 {{ color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700; }}
+            body {{ font-family: 'Pretendard', sans-serif; color: #0F172A; line-height: 1.6; margin: 0 auto; padding: 30px; max-width: 210mm; background: #FFFFFF; }}
+            h3 {{ color: #1E3A8A; border-left: 5px solid #1E3A8A; padding-left: 10px; margin-top: 40px; font-weight: 700; font-size: 1.3rem; }}
             table {{ width: 100%; border-collapse: collapse; margin-bottom: 20px; font-size: 0.95rem; }}
             th, td {{ border: 1px solid #CBD5E1; padding: 10px; text-align: center; }}
             th {{ background-color: #F8FAFC; color: #334155; font-weight: 700; }}
@@ -556,8 +567,8 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         </style>
     </head>
     <body>
-        <div style="text-align: center; margin-bottom: 30px;" class="print-btn">
-            <button onclick="window.print()" style="background-color: #2563EB; color: white; padding: 15px 30px; font-size: 1.2rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ 여기서 인쇄하기 (다중 페이지 완벽 지원)</button>
+        <div style="text-align: right; margin-bottom: 20px;" class="print-btn">
+            <button onclick="window.print()" style="background-color: #2563EB; color: white; padding: 8px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ 인쇄하기</button>
         </div>
         <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
             <h1 style="text-align: center; font-size: 2.5rem; margin: 0 0 10px 0; letter-spacing: -1px;">개별 맞춤형 종합 리포트</h1>
@@ -658,11 +669,13 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             if p_cols:
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
+                
+                # 그래프 폭을 A4 사이즈 안에 들어가도록 완벽히 고정 (width=700)
                 fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 성적 등락 추이")
-                fig_m.update_layout(yaxis=dict(range=[0, 105]), height=380, margin=dict(l=20, r=20, t=40, b=20))
-                # 그래프를 웹용 코드로 완벽하게 변환하여 Iframe 안에 삽입
+                fig_m.update_layout(yaxis=dict(range=[0, 105]), width=700, height=350, margin=dict(l=20, r=20, t=40, b=20))
+                
                 fig_html = fig_m.to_html(full_html=False, include_plotlyjs=False)
-                body_html += f"<div style='margin-top:20px;'>{fig_html}</div>"
+                body_html += f"<div style='margin-top:20px; text-align:center;'>{fig_html}</div>"
         else: body_html += "<p>모의고사 기록이 없습니다.</p>"
         body_html += "</div>"
 
@@ -704,19 +717,40 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>현재 누적 보관된 세부 처방전이 없습니다.</p>"
         body_html += "</div>"
 
-    final_html = html_head + body_html + "</body></html>"
+    final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 800);};</script></body></html>"
     
-    # 🖨️ 스트림릿 화면 내에 100% 독립된 인쇄 전용 창(Iframe)을 박아넣음
-    components.html(final_html, height=1200, scrolling=True)
+    # 🖨️ 우측 상단의 인쇄 버튼 (스트림릿 레이아웃에 직접 표시)
+    html_json = json.dumps(final_html)
+    button_html = f"""
+    <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
+    <div style="text-align: right; padding-top: 5px;">
+        <button onclick="openPrintWindow()" style="background-color: #2563EB; color: white; padding: 10px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🖨️ 인쇄하기</button>
+    </div>
+    <script>
+    function openPrintWindow() {{
+        var htmlContent = {html_json};
+        var printWin = window.open('', '_blank');
+        if (printWin) {{
+            printWin.document.open();
+            printWin.document.write(htmlContent);
+            printWin.document.close();
+        }} else {{
+            alert("팝업 차단이 설정되어 있습니다. 브라우저 주소창 우측에서 팝업 차단을 해제해주세요.");
+        }}
+    }}
+    </script>
+    """
+    with col_print_btn:
+        components.html(button_html, height=60)
 
 # ==========================================
-# 12. 🌟 학급 대시보드 (담임교사 전용)
+# 12. 🌟 학급 대시보드 (학년부장 전용)
 # ==========================================
 elif menu == "🌟 학급 대시보드":
     def check_dashboard_password():
-        correct_pwd = st.secrets.get("dashboard_password", "0005")
+        correct_pwd = st.secrets.get("dashboard_password", "1500")
         if st.session_state.get("dashboard_unlocked"): return True
-        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 {sel_class} 담임 전용 대시보드</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 학년부장 대시보드</h2>", unsafe_allow_html=True)
         pwd = st.text_input("대시보드 접속 비밀번호를 입력하세요.", type="password")
         if pwd == correct_pwd:
             st.session_state["dashboard_unlocked"] = True
@@ -725,8 +759,8 @@ elif menu == "🌟 학급 대시보드":
         return False
 
     if check_dashboard_password():
-        st.markdown(f"<h2 style='color: #1E40AF;'>🌟 {sel_term} {sel_class} 종합 대시보드</h2>", unsafe_allow_html=True)
-        st.info("💡 담임 선생님을 위한 학급 전체 요약 현황입니다.")
+        st.markdown(f"<h2 style='color: #1E40AF;'>🌟 {sel_term} {sel_class} 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
+        st.info("💡 학년부장 선생님을 위한 학급 전체 요약 현황입니다.")
         counsel_summary = []
         for _, stu_row in class_students.iterrows():
             uid = stu_row['고유번호']
