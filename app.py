@@ -27,7 +27,7 @@ st.markdown("""
 
     @media print {
         body::before {
-            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 취소를 누르시고, 화면 우측 상단의 파란색 [🖨️ 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
+            content: "⚠️ 인쇄 방식 변경 안내: 단축키(Ctrl+P)를 사용하지 마세요! 화면 우측 상단의 파란색 [🖨️ 인쇄하기] 버튼을 클릭하셔야 모든 페이지가 정상 출력됩니다.";
             display: flex;
             justify-content: center;
             align-items: center;
@@ -484,7 +484,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업 인쇄 기술 & 우측 상단 버튼)
+# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업 인쇄 기술 & 외계어/버튼 제거)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
@@ -525,7 +525,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
 
     st.markdown("---")
     
-    # === 우측 상단 인쇄 버튼 레이아웃 ===
     col_title, col_print_btn = st.columns([4, 1])
     with col_title:
         st.subheader("🖨️ 맞춤형 종합 리포트 출력 옵션")
@@ -539,8 +538,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     with c5: p_ai = st.checkbox("🔍 세부 처방전 모아보기", value=True)
 
     st.markdown("---")
+    st.info("👇 우측 상단의 파란색 **[🖨️ 인쇄하기]** 버튼을 누르시면 아주 깨끗하게 자동 인쇄 창이 열립니다!")
 
-    # ================= 🖨️ 인쇄 전용 독립 HTML (iframe) 빌드 =================
+    # ================= 🖨️ 인쇄 전용 100% 퓨어 HTML 빌드 작업 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     html_head = f"""
@@ -560,16 +560,12 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             .ai-box {{ background-color: #F8FAFC; border: 1px solid #E2E8F0; border-left: 6px solid #2563EB; padding: 22px; border-radius: 8px; line-height: 1.8; color: #1E293B; margin-bottom: 20px; }}
             .no-break {{ page-break-inside: avoid; break-inside: avoid; margin-bottom: 30px; }}
             @media print {{
-                .print-btn {{ display: none !important; }}
                 body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; }}
                 @page {{ margin: 15mm; }}
             }}
         </style>
     </head>
     <body>
-        <div style="text-align: right; margin-bottom: 20px;" class="print-btn">
-            <button onclick="window.print()" style="background-color: #2563EB; color: white; padding: 8px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1);">🖨️ 인쇄하기</button>
-        </div>
         <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
             <h1 style="text-align: center; font-size: 2.5rem; margin: 0 0 10px 0; letter-spacing: -1px;">개별 맞춤형 종합 리포트</h1>
             <table style="width: 100%; border: none !important; margin: 0 !important;">
@@ -590,7 +586,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
             body_html += f"""<div class="ai-box">{formatted_text}</div>"""
         else:
-            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 화면 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
+            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 화면 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 결합됩니다.</div>"""
         body_html += "</div>"
 
     if p_grade:
@@ -670,7 +666,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
                 
-                # 그래프 폭을 A4 사이즈 안에 들어가도록 완벽히 고정 (width=700)
                 fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), x='시험명', y='백분위', color='과목', markers=True, title="모의고사 성적 등락 추이")
                 fig_m.update_layout(yaxis=dict(range=[0, 105]), width=700, height=350, margin=dict(l=20, r=20, t=40, b=20))
                 
@@ -717,10 +712,11 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
         else: body_html += "<p>현재 누적 보관된 세부 처방전이 없습니다.</p>"
         body_html += "</div>"
 
-    final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 800);};</script></body></html>"
+    # [외계어 방지] 스크립트 충돌을 막기 위한 이스케이프 처리
+    final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 1000);};</script></body></html>"
+    safe_html_json = json.dumps(final_html).replace("</script>", "<\\/script>")
     
     # 🖨️ 우측 상단의 인쇄 버튼 (스트림릿 레이아웃에 직접 표시)
-    html_json = json.dumps(final_html)
     button_html = f"""
     <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
     <div style="text-align: right; padding-top: 5px;">
@@ -728,7 +724,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     </div>
     <script>
     function openPrintWindow() {{
-        var htmlContent = {html_json};
+        var htmlContent = {safe_html_json};
         var printWin = window.open('', '_blank');
         if (printWin) {{
             printWin.document.open();
@@ -750,7 +746,7 @@ elif menu == "🌟 학급 대시보드":
     def check_dashboard_password():
         correct_pwd = st.secrets.get("dashboard_password", "1500")
         if st.session_state.get("dashboard_unlocked"): return True
-        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 학년부장 대시보드</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
         pwd = st.text_input("대시보드 접속 비밀번호를 입력하세요.", type="password")
         if pwd == correct_pwd:
             st.session_state["dashboard_unlocked"] = True
