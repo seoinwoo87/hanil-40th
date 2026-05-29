@@ -500,7 +500,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 
+# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업창 + 수동 인쇄 선택)
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
@@ -555,11 +555,9 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                 
                 success_count = 0
                 for i, (u_id, u_name) in enumerate(zip(class_uids, class_names)):
-                    # 캐시 초기화
                     if u_id not in st.session_state["global_ai_cache"]:
                         st.session_state["global_ai_cache"][u_id] = {}
                     
-                    # 이미 생성된 캐시가 있으면 패스 (구글 API 한도 절약)
                     if "master_consulting" in st.session_state["global_ai_cache"][u_id]:
                         success_count += 1
                     else:
@@ -595,14 +593,14 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                             resp = ai_model.generate_content(master_prompt).text
                             st.session_state["global_ai_cache"][u_id]["master_consulting"] = resp
                             success_count += 1
-                            time.sleep(3.5) # 구글 API 429 Quota 에러 방지용 (필수)
+                            time.sleep(3.5)
                         except Exception as e:
-                            st.error(f"{real_name} 학생 분석 중 오류 (잠시 후 다시 시도하세요): {e}")
+                            st.error(f"{real_name} 학생 분석 중 오류: {e}")
                             time.sleep(5)
                             
                     my_bar.progress((i + 1) / len(class_uids), text=f"분석 진행 중: {u_name} ({i+1}/{len(class_uids)})")
                 
-                st.success(f"🎉 우리 반 {success_count}명 학생의 컨설팅 리포트 일괄 생성이 완료되었습니다! 이제 마음껏 인쇄하세요.")
+                st.success(f"🎉 우리 반 {success_count}명 학생의 컨설팅 리포트 생성이 완료되었습니다!")
             else:
                 st.warning("AI 모델을 사용할 수 없습니다.")
 
@@ -644,10 +642,16 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             @media print {{
                 body {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; padding: 0; }}
                 @page {{ margin: 15mm; }}
+                /* 종이에는 인쇄 버튼이 절대 찍히지 않도록 강제 삭제 */
+                .print-btn {{ display: none !important; }}
             }}
         </style>
     </head>
     <body>
+        <div style="text-align: right; margin-bottom: 10px; position: sticky; top: 20px; z-index: 1000;" class="print-btn">
+            <button onclick="window.print()" style="background-color: #2563EB; color: white; padding: 12px 24px; font-size: 1.1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 4px 10px rgba(0,0,0,0.2);">🖨️ 확인 완료! 지금 인쇄하기</button>
+        </div>
+
         <div style="border-bottom: 2px solid #1E3A8A; padding-bottom: 10px; margin-bottom: 30px;">
             <h1 style="text-align: center; font-size: 2.5rem; margin: 0 0 10px 0; letter-spacing: -1px;">개별 맞춤형 종합 리포트</h1>
             <table style="width: 100%; border: none !important; margin: 0 !important;">
@@ -835,16 +839,17 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
             body_html += f"""<div class="ai-box">{formatted_text}</div>"""
         else:
-            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 화면 상단의 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
+            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
         body_html += "</div>"
 
-    final_html = html_head + body_html + "<script>window.onload = function(){setTimeout(function(){window.print();}, 1000);};</script></body></html>"
+    # [수정] 자동 인쇄 기능 완전 삭제 (그냥 HTML만 깔끔하게 구성)
+    final_html = html_head + body_html + "</body></html>"
     safe_html_json = json.dumps(final_html).replace("</script>", "<\\/script>")
     
     button_html = f"""
     <style>body {{ margin: 0; padding: 0; overflow: hidden; background: transparent; }}</style>
     <div style="text-align: right; padding-top: 5px;">
-        <button onclick="openPrintWindow()" style="background-color: #2563EB; color: white; padding: 10px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🖨️ 인쇄하기</button>
+        <button onclick="openPrintWindow()" style="background-color: #2563EB; color: white; padding: 10px 20px; font-size: 1rem; font-weight: bold; border: none; border-radius: 8px; cursor: pointer; box-shadow: 0 2px 4px rgba(0,0,0,0.1);">🖨️ 인쇄 전용 팝업 열기</button>
     </div>
     <script>
     function openPrintWindow() {{
