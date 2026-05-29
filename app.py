@@ -905,3 +905,96 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     """
     with col_print_btn:
         components.html(button_html, height=60)
+        # ==========================================
+# 12. 🌟 학급 대시보드 (학년부장 전용)
+# ==========================================
+elif menu == "🌟 학급 대시보드":
+    def check_dashboard_password():
+        correct_pwd = st.secrets.get("dashboard_password", "1500")
+        if st.session_state.get("dashboard_unlocked"): return True
+        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
+        pwd = st.text_input("대시보드 접속 비밀번호를 입력하세요.", type="password")
+        if pwd == correct_pwd:
+            st.session_state["dashboard_unlocked"] = True
+            st.rerun()
+        elif pwd: st.error("비밀번호가 틀렸습니다.")
+        return False
+
+    if check_dashboard_password():
+        st.markdown(f"<h2 style='color: #1E40AF;'>🌟 {sel_term} 학년부장 전용 종합 대시보드</h2>", unsafe_allow_html=True)
+        st.info("💡 학년 전체 및 각 학급별 통계 현황을 한눈에 파악할 수 있는 부장님 전용 대시보드입니다.")
+        
+        # 💡 [핵심] 선택한 반이 아니라 '선택한 학기 전체 학생' 추출
+        all_term_students = df_scores[df_scores['학기'] == sel_term][['반', '학번', '학생명', '고유번호']].drop_duplicates()
+        
+        if all_term_students.empty:
+            st.warning("선택하신 학기의 데이터가 없습니다.")
+        else:
+            grade_summary = []
+            
+            # 학생 개별 통계 계산
+            for _, stu_row in all_term_students.iterrows():
+                uid = stu_row['고유번호']
+                stu_class = stu_row['반']
+                stu_hakbun = str(stu_row['학번'])
+                stu_name = stu_row['학생명']
+                
+                u_cs = df_counsel[df_counsel['고유번호']==uid] if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번'].astype(str)==stu_hakbun]
+                cs_count = len(u_cs)
+                last_date = u_cs['상담일자'].max() if not u_cs.empty and '상담일자' in u_cs.columns else "-"
+                
+                u_ac = df_act[df_act['고유번호']==uid]
+                act_count = len(u_ac)
+                
+                grade_summary.append({
+                    "반": stu_class,
+                    "학번": stu_hakbun,
+                    "이름": stu_name,
+                    "상담건수": cs_count,
+                    "최근 상담일": last_date,
+                    "활동건수": act_count
+                })
+            
+            grade_df = pd.DataFrame(grade_summary)
+            
+            # 📊 [추가된 기능] 각 반별 통계로 묶기
+            class_stats = grade_df.groupby('반').agg(
+                총인원=('학번', 'count'),
+                상담진행학생수=('상담건수', lambda x: (x > 0).sum()),
+                총상담건수=('상담건수', 'sum'),
+                총활동건수=('활동건수', 'sum')
+            ).reset_index()
+            
+            class_stats = class_stats.rename(columns={
+                '총인원': '총 인원(명)',
+                '상담진행학생수': '상담 진행 학생(명)',
+                '총상담건수': '누적 상담(건)',
+                '총활동건수': '비교과 활동(건)'
+            })
+            
+            # 상단 핵심 요약 매트릭
+            c1, c2, c3 = st.columns(3)
+            total_students = class_stats['총 인원(명)'].sum()
+            total_counseled = class_stats['상담 진행 학생(명)'].sum()
+            best_class = class_stats.sort_values('누적 상담(건)', ascending=False).iloc[0]['반'] if not class_stats.empty and class_stats['누적 상담(건)'].sum() > 0 else "-"
+            
+            c1.metric("👩‍🎓 전체 학년 총 인원", f"{total_students}명")
+            c2.metric("🗣️ 전체 상담 진행 학생", f"{total_counseled}명")
+            c3.metric("🏆 상담 최다 진행 학급", f"{best_class}")
+            
+            st.markdown("---")
+            st.subheader("📊 각 반별 통계 요약표")
+            st.dataframe(style_centered(class_stats), use_container_width=True)
+            
+            st.markdown("---")
+            st.subheader("📋 전체 학생 세부 현황")
+            
+            # 반별 필터링 기능 추가
+            filter_class = st.selectbox("조회할 반 선택", ["전체"] + sorted(grade_df['반'].unique().tolist()))
+            
+            detail_display = grade_df.copy()
+            if filter_class != "전체":
+                detail_display = detail_display[detail_display['반'] == filter_class]
+                
+            detail_display = detail_display[['반', '학번', '이름', '상담건수', '최근 상담일', '활동건수']].sort_values(['반', '학번'])
+            st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
