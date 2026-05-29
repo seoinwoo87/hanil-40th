@@ -8,7 +8,7 @@ from oauth2client.service_account import ServiceAccountCredentials
 import re
 import datetime
 import json
-import time  # 일괄 생성 딜레이용 추가
+import time
 import streamlit.components.v1 as components
 
 # ==========================================
@@ -144,7 +144,6 @@ def load_all_data():
         dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안"]]
         df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans = dfs
         
-        # England 오타 수정 완료 구역!
         if not df_ms.empty and '고유번호' in df_ms.columns:
             mapping = df_ms[['학번', '고유번호']].drop_duplicates()
             def apply_uid(df):
@@ -203,10 +202,8 @@ with st.sidebar:
     sel_uid = class_students[class_students['표시식별'] == sel_student]['고유번호'].iloc[0]
     sel_name = sel_student.split(" ")[1]
     
-    # 🧠 학생별 개별 AI 기억 장치 탑재! (다른 학생 다녀와도 기억 유지됨)
     if "global_ai_cache" not in st.session_state:
         st.session_state["global_ai_cache"] = {}
-        
     if sel_uid not in st.session_state["global_ai_cache"]:
         st.session_state["global_ai_cache"][sel_uid] = {}
         
@@ -219,6 +216,37 @@ with st.sidebar:
     st.query_params["menu"] = menu
 
 st.header(f"📊 {sel_student} 분석 리포트" if menu not in ["🖨️ 맞춤형 리포트 출력", "🌟 학급 대시보드"] else "")
+
+# ==========================================
+# 🌟 [신규 기능] 퀵 상담 메모 (화면 공유 중 바로 기록)
+# ==========================================
+if menu not in ["📝 상담 기록", "🖨️ 맞춤형 리포트 출력", "🌟 학급 대시보드"]:
+    with st.expander("⚡ 빠른 상담 메모 (학생과 화면 공유 중 바로 기록하세요)", expanded=False):
+        with st.form("quick_counsel_form", clear_on_submit=True):
+            qc1, qc2 = st.columns([1, 3])
+            with qc1:
+                q_date = st.date_input("상담 일자")
+                q_type = st.selectbox("상담 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"])
+            with qc2:
+                q_memo = st.text_area("간단 메모", height=110, placeholder="현재 화면의 그래프나 성적을 보며 핵심 내용만 빠르게 남기세요. (저장 후 '상담 기록' 메뉴로 넘어갑니다)")
+            
+            if st.form_submit_button("💾 빠른 메모 저장"):
+                if q_memo.strip():
+                    with st.spinner("구글 시트에 저장 중..."):
+                        try:
+                            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                            creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                            doc = gspread.authorize(creds).open("40기 마스터 파일")
+                            try: sh = doc.worksheet("71_상담기록")
+                            except:
+                                sh = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
+                                sh.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
+                            sh.append_row([sel_student.split(" ")[0], sel_name, str(q_date), q_type, q_memo])
+                            st.cache_resource.clear()
+                            st.success("✅ 메모 저장 완료! 나중에 '상담 기록' 탭에서 수정하거나 예쁘게 정리하실 수 있습니다.")
+                        except Exception as e: st.error(f"저장 실패: {e}")
+                else:
+                    st.warning("메모 내용을 입력해주세요.")
 
 # ==========================================
 # 6. 내신 분석
@@ -312,7 +340,6 @@ elif menu == "🎯 모의고사 분석":
                 plot_m = uid_mk[['시험명'] + p_cols].copy()
                 for c in p_cols: plot_m[c] = plot_m[c].apply(safe_numeric)
                 
-                # 웹 화면용 그래프 (흑백 식별 옵션 추가)
                 fig_m = px.line(plot_m.melt(id_vars=['시험명'], var_name='과목', value_name='백분위'), 
                                 x='시험명', y='백분위', color='과목', symbol='과목', line_dash='과목', markers=True)
                 fig_m.update_traces(marker=dict(size=12), line=dict(width=3))
@@ -851,7 +878,7 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             formatted_text = st.session_state["ai_cache"]["master_consulting"].replace("\n", "<br>")
             body_html += f"""<div class="ai-box">{formatted_text}</div>"""
         else:
-            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
+            body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
         body_html += "</div>"
 
     final_html = html_head + body_html + "</body></html>"
@@ -878,54 +905,3 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
     """
     with col_print_btn:
         components.html(button_html, height=60)
-
-# ==========================================
-# 12. 🌟 학급 대시보드 (학년부장 전용)
-# ==========================================
-elif menu == "🌟 학급 대시보드":
-    def check_dashboard_password():
-        correct_pwd = st.secrets.get("dashboard_password", "1500")
-        if st.session_state.get("dashboard_unlocked"): return True
-        st.markdown(f"<h2 style='color: #1E40AF;'>🔒 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
-        pwd = st.text_input("대시보드 접속 비밀번호를 입력하세요.", type="password")
-        if pwd == correct_pwd:
-            st.session_state["dashboard_unlocked"] = True
-            st.rerun()
-        elif pwd: st.error("비밀번호가 틀렸습니다.")
-        return False
-
-    if check_dashboard_password():
-        st.markdown(f"<h2 style='color: #1E40AF;'>🌟 {sel_term} {sel_class} 학년부장 전용 대시보드</h2>", unsafe_allow_html=True)
-        st.info("💡 학년부장 선생님을 위한 학급 전체 요약 현황입니다.")
-        
-        # 💡 [버그 수정] 과목별로 나뉘어 있던 줄에서 '유일한 학생 목록'만 뽑아내기!
-        unique_students = class_students[['학번', '학생명', '고유번호']].drop_duplicates()
-        
-        counsel_summary = []
-        for _, stu_row in unique_students.iterrows():
-            uid = stu_row['고유번호']
-            stu_name = stu_row['학생명']
-            stu_hakbun = str(stu_row['학번'])
-            
-            u_cs = df_counsel[df_counsel['고유번호']==uid] if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번'].astype(str)==stu_hakbun]
-            if not u_cs.empty and '상담일자' in u_cs.columns:
-                last_date = u_cs['상담일자'].max()
-                count = len(u_cs)
-            else:
-                last_date = "-"
-                count = 0
-                
-            u_ac = df_act[df_act['고유번호']==uid]
-            act_count = len(u_ac)
-            
-            counsel_summary.append({"학번": stu_hakbun, "이름": stu_name, "누적 상담(건)": count, "최근 상담일": last_date, "비교과 활동(건)": act_count})
-        
-        dash_df = pd.DataFrame(counsel_summary).sort_values('학번')
-        c1, c2, c3 = st.columns(3)
-        c1.metric("👩‍🎓 학생 총 인원", f"{len(dash_df)}명")
-        c2.metric("🗣️ 상담 진행 학생 (1회 이상)", f"{len(dash_df[dash_df['누적 상담(건)'] > 0])}명")
-        c3.metric("🏆 비교과 최다 활동 학생", f"{dash_df.sort_values('비교과 활동(건)', ascending=False).iloc[0]['이름']} ({dash_df['비교과 활동(건)'].max()}건)" if not dash_df.empty and dash_df['비교과 활동(건)'].max() > 0 else "-")
-        
-        st.markdown("---")
-        st.subheader("📋 개별 학생 현황표")
-        st.dataframe(style_centered(dash_df), use_container_width=True, height=500)
