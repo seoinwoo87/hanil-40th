@@ -500,7 +500,7 @@ elif menu == "📝 상담 기록":
         else: st.warning("이전에 작성된 상담 기록이 없습니다.")
 
 # ==========================================
-# 11. 🖨️ 맞춤형 리포트 출력 (🚀 독립 팝업창 + 수동 인쇄 선택)
+# 11. 🖨️ 맞춤형 리포트 출력 
 # ==========================================
 elif menu == "🖨️ 맞춤형 리포트 출력":
     
@@ -593,14 +593,16 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
                             resp = ai_model.generate_content(master_prompt).text
                             st.session_state["global_ai_cache"][u_id]["master_consulting"] = resp
                             success_count += 1
-                            time.sleep(3.5)
+                            # ⏱️ 딜레이를 5초로 늘려 무료 한도 초과(429 에러) 완벽 예방!
+                            time.sleep(5.0) 
                         except Exception as e:
-                            st.error(f"{real_name} 학생 분석 중 오류: {e}")
-                            time.sleep(5)
+                            st.error(f"⚠️ {real_name} 학생 분석 중 구글 API 한도 초과! 1분 뒤 다시 [일괄 생성] 버튼을 누르시면 여기서부터 이어서 진행됩니다.")
+                            break # 에러 나면 억지로 진행 안 하고 스톱!
                             
                     my_bar.progress((i + 1) / len(class_uids), text=f"분석 진행 중: {u_name} ({i+1}/{len(class_uids)})")
                 
-                st.success(f"🎉 우리 반 {success_count}명 학생의 컨설팅 리포트 생성이 완료되었습니다!")
+                if success_count == len(class_uids):
+                    st.success(f"🎉 우리 반 {success_count}명 학생의 컨설팅 리포트 생성이 모두 완료되었습니다!")
             else:
                 st.warning("AI 모델을 사용할 수 없습니다.")
 
@@ -842,7 +844,6 @@ elif menu == "🖨️ 맞춤형 리포트 출력":
             body_html += """<div style='color:#EF4444; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 6px; border: 1px solid #FCA5A5;'>⚠️ 메인 화면에서 '통합 컨설팅 리포트 생성' 버튼을 누르시면 컨설팅 의견이 여기에 결합됩니다.</div>"""
         body_html += "</div>"
 
-    # [수정] 자동 인쇄 기능 완전 삭제 (그냥 HTML만 깔끔하게 구성)
     final_html = html_head + body_html + "</body></html>"
     safe_html_json = json.dumps(final_html).replace("</script>", "<\\/script>")
     
