@@ -584,7 +584,7 @@ elif menu == "상담 기록 관리":
         else: st.warning("조회된 이전 상담 이력이 없습니다.")
 
 # ==========================================
-# 11. 종합 컨설팅 리포트 출력 (🔥 마크다운 제거 필터 + 구글 시트 영구 덮어쓰기 탑재)
+# 11. 종합 컨설팅 리포트 출력 (🔥 마크다운 제거 필터 + 구글 시트 영구 덮어쓰기 + 단일생성 자동재시도 탑재)
 # ==========================================
 elif menu == "종합 컨설팅 리포트 출력":
     
@@ -635,34 +635,48 @@ elif menu == "종합 컨설팅 리포트 출력":
                     a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
                     
                     p_text = master_prompt_template.format(name=sel_name, g_data=str(g_data), m_data=str(m_data), a_data=str(a_data))
-                    try:
-                        resp = ai_model.generate_content(p_text).text
-                        
-                        # 🚫 [2중 안전 장치] AI가 혹시라도 뱉어낸 마크다운 ** 기호 강제 강제 철거!
-                        resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
-                        
-                        st.session_state["ai_cache"]["master_consulting"] = resp
-                        
-                        # 💾 구글 시트 실시간 저장 (최신화 덮어쓰기 로직)
-                        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-                        doc = gspread.authorize(creds).open("40기 마스터 파일")
-                        try: sh_c = doc.worksheet("72_종합컨설팅")
-                        except:
-                            sh_c = doc.add_worksheet(title="72_종합컨설팅", rows="1000", cols="5")
-                            sh_c.append_row(["고유번호", "학번", "이름", "컨설팅내용", "최근업데이트"])
-                        
-                        all_uids = sh_c.col_values(1)
-                        u_hakbun = sel_student.split(" ")[0]
-                        if str(sel_uid) in all_uids:
-                            row_idx = all_uids.index(str(sel_uid)) + 1
-                            sh_c.update_cell(row_idx, 4, resp)
-                            sh_c.update_cell(row_idx, 5, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-                        else:
-                            sh_c.append_row([str(sel_uid), str(u_hakbun), str(sel_name), resp, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
-                        
-                        st.success("✅ 컨설팅 보고서가 도출되었으며 구글 드라이브에 안전하게 영구 업데이트되었습니다!")
-                    except Exception as e: st.error(f"생성 및 백업 시스템 오류: {e}")
+                    
+                    # 🔥 [단일 생성에도 좀비 재시도 로직 추가!]
+                    max_retries = 3
+                    for attempt in range(max_retries):
+                        try:
+                            resp = ai_model.generate_content(p_text).text
+                            
+                            # 🚫 [2중 안전 장치] 마크다운 기호 강제 철거
+                            resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
+                            
+                            st.session_state["ai_cache"]["master_consulting"] = resp
+                            
+                            # 💾 구글 시트 실시간 저장 (최신화 덮어쓰기 로직)
+                            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                            creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                            doc = gspread.authorize(creds).open("40기 마스터 파일")
+                            try: sh_c = doc.worksheet("72_종합컨설팅")
+                            except:
+                                sh_c = doc.add_worksheet(title="72_종합컨설팅", rows="1000", cols="5")
+                                sh_c.append_row(["고유번호", "학번", "이름", "컨설팅내용", "최근업데이트"])
+                            
+                            all_uids = sh_c.col_values(1)
+                            u_hakbun = sel_student.split(" ")[0]
+                            if str(sel_uid) in all_uids:
+                                row_idx = all_uids.index(str(sel_uid)) + 1
+                                sh_c.update_cell(row_idx, 4, resp)
+                                sh_c.update_cell(row_idx, 5, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                            else:
+                                sh_c.append_row([str(sel_uid), str(u_hakbun), str(sel_name), resp, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                            
+                            st.success("✅ 컨설팅 보고서가 도출되었으며 구글 드라이브에 안전하게 영구 업데이트되었습니다!")
+                            break # 성공 시 루프 탈출
+                            
+                        except Exception as e:
+                            error_msg = str(e)
+                            if "429" in error_msg or "Quota" in error_msg:
+                                if attempt < max_retries - 1:
+                                    st.warning(f"⏳ 구글 API 무료 한도 도달! 35초 대기 후 자동으로 재시도합니다... (시도 {attempt+1}/{max_retries})")
+                                    time.sleep(35.0)
+                                    continue # 35초 쉬고 다시 시도
+                            st.error(f"생성 및 백업 시스템 오류: {e}")
+                            break # 다른 에러면 루프 탈출
             else: st.warning("AI 엔진 연결 상태를 확인해주십시오.")
 
     with c_btn2:
