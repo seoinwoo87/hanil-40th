@@ -17,7 +17,7 @@ import streamlit.components.v1 as components
 SCHOOL_LOGO_URL = "https://github.com/seoinwoo87/hanil-40th/blob/main/%ED%95%9C%EC%9D%BC%EB%A6%AC%EB%B3%B8%EB%A7%88%ED%81%AC%EC%B2%AD.jpg?raw=true"
 
 # ==========================================
-# 1. 페이지 설정 및 전문가용 디자인 CSS
+# 1. 페이지 설정 및 전문가용 디자인 CSS (가독성 강화 패치)
 # ==========================================
 st.set_page_config(page_title="한일고 진학 컨설팅 시스템", layout="wide")
 
@@ -26,13 +26,26 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; background-color: #F8FAFC; color: #0F172A; }
     
-    /* 전체적인 각진 테두리와 네이비 포인트 컬러 적용 */
-    .stMetric { background: white; border: 1px solid #E2E8F0; padding: 15px !important; border-radius: 4px !important; border-top: 3px solid #1E3A8A !important; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-    .timeline-card { background: white; border: 1px solid #E2E8F0; border-radius: 4px; padding: 25px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); border-left: 4px solid #1E3A8A; }
-    .badge { display: inline-block; padding: 4px 10px; border-radius: 2px; font-size: 0.75rem; font-weight: 600; background: #F1F5F9; color: #334155; border: 1px solid #E2E8F0; margin-bottom: 10px; margin-right: 5px; letter-spacing: -0.5px; }
-    .stat-box { background: #FFFFFF; border: 1px solid #E2E8F0; border-radius: 4px; padding: 15px; text-align: center; border-top: 3px solid #475569; }
-    .stApp [data-testid="stExpander"] { background: white !important; border-radius: 4px; border: 1px solid #E2E8F0; }
-    table, th, td { text-align: center !important; }
+    /* 🔍 [가독성 강화] 드롭다운(선택칸) 및 입력창 뚜렷하게 */
+    div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
+    div[data-baseweb="input"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
+    input, textarea, div[data-baseweb="select"] * { color: #0F172A !important; }
+    
+    /* 🔍 [가독성 강화] 탭(Tab) 메뉴 글씨 또렷하게 */
+    button[data-baseweb="tab"] { font-size: 1.05rem !important; font-weight: 600 !important; color: #64748B !important; }
+    button[data-baseweb="tab"][aria-selected="true"] { color: #1E3A8A !important; border-bottom: 3px solid #1E3A8A !important; font-weight: 800 !important; }
+
+    /* 기존 전체적인 각진 테두리와 네이비 포인트 컬러 (명도 대비 상향) */
+    .stMetric { background: white; border: 1px solid #CBD5E1; padding: 15px !important; border-radius: 4px !important; border-top: 3px solid #1E3A8A !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .timeline-card { background: white; border: 1px solid #CBD5E1; border-radius: 4px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid #1E3A8A; }
+    .badge { display: inline-block; padding: 4px 10px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; background: #F1F5F9; color: #1E293B; border: 1px solid #94A3B8; margin-bottom: 10px; margin-right: 5px; letter-spacing: -0.5px; }
+    .stat-box { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 4px; padding: 15px; text-align: center; border-top: 3px solid #475569; }
+    .stApp [data-testid="stExpander"] { background: white !important; border-radius: 4px; border: 1px solid #CBD5E1; }
+    
+    /* 표(테이블) 가독성 향상 */
+    table, th, td { text-align: center !important; border-color: #CBD5E1 !important; }
+    th { background-color: #E2E8F0 !important; color: #0F172A !important; font-weight: 800 !important; }
+    
     h1, h2, h3 { color: #0F172A; font-weight: 800; letter-spacing: -1px; }
 
     @media print {
