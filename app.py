@@ -14,10 +14,10 @@ import streamlit.components.v1 as components
 # ==========================================
 # 🏫 학교 로고 설정 (여기에 로고 이미지 링크를 넣어주세요)
 # ==========================================
-SCHOOL_LOGO_URL = "https://github.com/seoinwoo87/hanil-40th/blob/main/%ED%95%9C%EC%9D%BC%EB%A6%AC%EB%B3%B8%EB%A7%88%ED%81%AC%EC%B2%AD.jpg?raw=true"
+SCHOOL_LOGO_URL = "https://upload.wikimedia.org/wikipedia/ko/thumb/4/4b/%ED%95%9C%EC%9D%BC%EA%B3%A0%EB%93%B1%ED%95%99%EA%B5%90_%EB%A1%9C%EA%B3%A0.svg/200px-%ED%95%9C%EC%9D%BC%EA%B3%A0%EB%93%B1%ED%95%99%EA%B5%90_%EB%A1%9C%EA%B3%A0.svg.png"
 
 # ==========================================
-# 1. 페이지 설정 및 전문가용 디자인 CSS (가독성 강화 패치)
+# 1. 페이지 설정 및 전문가용 디자인 CSS (가독성 강화)
 # ==========================================
 st.set_page_config(page_title="한일고 진학 컨설팅 시스템", layout="wide")
 
@@ -26,23 +26,23 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; background-color: #F8FAFC; color: #0F172A; }
     
-    /* 🔍 [가독성 강화] 드롭다운(선택칸) 및 입력창 뚜렷하게 */
+    /* 드롭다운(선택칸) 및 입력창 또렷하게 명도 조정 */
     div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
     div[data-baseweb="input"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
     input, textarea, div[data-baseweb="select"] * { color: #0F172A !important; }
     
-    /* 🔍 [가독성 강화] 탭(Tab) 메뉴 글씨 또렷하게 */
+    /* 탭(Tab) 메뉴 가독성 상향 */
     button[data-baseweb="tab"] { font-size: 1.05rem !important; font-weight: 600 !important; color: #64748B !important; }
     button[data-baseweb="tab"][aria-selected="true"] { color: #1E3A8A !important; border-bottom: 3px solid #1E3A8A !important; font-weight: 800 !important; }
 
-    /* 기존 전체적인 각진 테두리와 네이비 포인트 컬러 (명도 대비 상향) */
+    /* 각진 테두리와 깊은 네이비 포인트 컬러 */
     .stMetric { background: white; border: 1px solid #CBD5E1; padding: 15px !important; border-radius: 4px !important; border-top: 3px solid #1E3A8A !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .timeline-card { background: white; border: 1px solid #CBD5E1; border-radius: 4px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid #1E3A8A; }
     .badge { display: inline-block; padding: 4px 10px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; background: #F1F5F9; color: #1E293B; border: 1px solid #94A3B8; margin-bottom: 10px; margin-right: 5px; letter-spacing: -0.5px; }
     .stat-box { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 4px; padding: 15px; text-align: center; border-top: 3px solid #475569; }
     .stApp [data-testid="stExpander"] { background: white !important; border-radius: 4px; border: 1px solid #CBD5E1; }
     
-    /* 표(테이블) 가독성 향상 */
+    /* 표(테이블) 가독성 세팅 */
     table, th, td { text-align: center !important; border-color: #CBD5E1 !important; }
     th { background-color: #E2E8F0 !important; color: #0F172A !important; font-weight: 800 !important; }
     
@@ -126,7 +126,7 @@ def get_time_rank(row):
     return t_map.get(row.get('학기',''), 0) + e_map.get(row.get('시험',''), 0)
 
 # ==========================================
-# 4. 데이터 로드 (구글 시트 연동)
+# 4. 데이터 로드 (구글 시트 연동 + 72번 컨설팅백업 탭 결합)
 # ==========================================
 @st.cache_resource
 def load_all_data():
@@ -147,12 +147,13 @@ def load_all_data():
                     df['반'] = df['학번'].apply(lambda x: f"{x[1]}반" if len(x) >= 4 else "기타")
                 n_col = next((c for c in df.columns if any(k in c for k in ['성명','이름'])), None)
                 if n_col:
-                    df['학생명'] = df[n_col].astype(str).str.strip()
-                    df['표시식별'] = df['학번'] + " " + df['학생명']
+                    df['text명'] = df[n_col].astype(str).str.strip()
+                    df['표시식별'] = df['학번'] + " " + df['text명']
                 return df
             except: return pd.DataFrame()
-        dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안"]]
-        df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans = dfs
+            
+        dfs = [process_sheet(n) for n in ["31_내신", "21_모의고사", "51_시험복기", "61_비교과", "71_상담기록", "99_학생_마스터", "22_모의고사_문항정보", "23_모의고사_학생답안", "72_종합컨설팅"]]
+        df_sc, df_mk, df_rf, df_ac, df_cs, df_ms, df_m_info, df_m_ans, df_consult_saved = dfs
         
         if not df_ms.empty and '고유번호' in df_ms.columns:
             mapping = df_ms[['학번', '고유번호']].drop_duplicates()
@@ -162,13 +163,13 @@ def load_all_data():
                     m['고유번호'] = m['고유번호'].fillna(m['표시식별'])
                     return m
                 return df
-            return apply_uid(df_sc), apply_uid(df_mk), apply_uid(df_rf), apply_uid(df_ac), apply_uid(df_cs), df_m_info, df_m_ans
-        return [d.assign(고유번호=d.get('표시식별','')) for d in [df_sc, df_mk, df_rf, df_ac, df_cs]] + [df_m_info, df_m_ans]
+            return apply_uid(df_sc), apply_uid(df_mk), apply_uid(df_rf), apply_uid(df_ac), apply_uid(df_cs), df_m_info, df_m_ans, df_consult_saved
+        return [d.assign(고유번호=d.get('표시식별','')) for d in [df_sc, df_mk, df_rf, df_ac, df_cs]] + [df_m_info, df_m_ans, df_consult_saved]
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
-        return [pd.DataFrame()]*8
+        return [pd.DataFrame()]*9
 
-df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans = load_all_data()
+df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans, df_consult_saved = load_all_data()
 
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
@@ -178,7 +179,7 @@ try:
 except Exception: ai_model = None
 
 # ==========================================
-# 5. 사이드바 메뉴 구성 (로고 포함)
+# 5. 사이드바 메뉴 및 메인 랜딩 페이지 (들여쓰기 구조 수정 완결)
 # ==========================================
 query_params = st.query_params
 
@@ -205,11 +206,10 @@ with st.sidebar:
     d_idx = s_list.index(query_params["student"]) if "student" in query_params and query_params["student"] in s_list else 0
     sel_student = st.selectbox("컨설팅 대상 학생", s_list, index=d_idx)
 
-# 🚨 주의: 여기서부터는 왼쪽 사이드바가 아닌 '넓은 메인 화면'입니다! (여백 없이 왼쪽 벽에 딱 붙어야 합니다)
+# 🚨 메인 랜딩 페이지 분기점 (왼쪽 벽에 정렬)
 if sel_student == "학생을 선택해주세요":
     if "student" in st.query_params: del st.query_params["student"]
     
-    # 1. 🌟 고급스러운 메인 환영 배너 (그라데이션 효과)
     st.markdown("""
     <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 60px 30px; border-radius: 8px; text-align: center; color: white; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
         <h1 style="color: white; font-size: 2.8rem; margin-bottom: 10px; letter-spacing: -1px; font-weight: 800;">한일고등학교 통합 진학 컨설팅 시스템</h1>
@@ -219,7 +219,6 @@ if sel_student == "학생을 선택해주세요":
     
     st.markdown("<br><br>", unsafe_allow_html=True)
     
-    # 2. 📌 시스템 주요 기능 요약 카드 (3단 구성)
     st.markdown("<h3 style='color: #0F172A; font-weight: 800; font-size: 1.4rem;'>시스템 핵심 기능 안내</h3>", unsafe_allow_html=True)
     c1, c2, c3 = st.columns(3)
     with c1:
@@ -245,13 +244,10 @@ if sel_student == "학생을 선택해주세요":
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 3. 💡 시작하기 직관적 가이드
     st.info("▶ **[ 컨설팅 시작하기 ]** 좌측 메뉴바에서 **'조회할 학급'**과 **'학생 이름'**을 선택하시면 해당 학생의 정밀 분석 대시보드가 활성화됩니다.")
-    
-    st.stop() # 환영 배너를 다 그렸으면 여기서 작동을 멈춥니다.
+    st.stop()
 
-# 🚨 다시 왼쪽 사이드바로 들어갑니다. (학생이 선택되었을 때만 메뉴 버튼들을 보여줍니다)
+# 🚨 학생 선택 완료 시 사이드바 후속 제어
 with st.sidebar:
     st.query_params["student"] = sel_student
     sel_uid = class_students[class_students['표시식별'] == sel_student]['고유번호'].iloc[0]
@@ -263,13 +259,23 @@ with st.sidebar:
     st.session_state["ai_cache"] = st.session_state["global_ai_cache"][sel_uid]
     st.session_state["current_student"] = sel_uid
 
+    # 💾 [구글 시트 연동 핵심] 새로고침 해도 기존에 백업된 컨설팅 데이터가 시트에 있으면 자동 로드!
+    if "master_consulting" not in st.session_state["global_ai_cache"][sel_uid]:
+        if not df_consult_saved.empty and '고유번호' in df_consult_saved.columns:
+            saved_match = df_consult_saved[df_consult_saved['고유번호'].astype(str) == str(sel_uid)]
+            if not saved_match.empty:
+                st.session_state["global_ai_cache"][sel_uid]["master_consulting"] = saved_match.iloc[0]['컨설팅내용']
+
     menu_list = ["내신 성적 분석", "모의고사 분석", "학습 성찰 리포트", "비교과 활동 타임라인", "상담 기록 관리", "종합 컨설팅 리포트 출력", "학년부장 통합 대시보드"]
     d_menu_idx = menu_list.index(query_params["menu"]) if "menu" in query_params and query_params["menu"] in menu_list else 0
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.radio("분석 메뉴", menu_list, index=d_menu_idx)
     st.query_params["menu"] = menu
+
+st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
+
 # ==========================================
-# 빠른 상담 메모 (전문가 톤)
+# 빠른 상담 메모 위젯
 # ==========================================
 if menu not in ["상담 기록 관리", "종합 컨설팅 리포트 출력", "학년부장 통합 대시보드"]:
     with st.expander("빠른 상담 메모 (진행 중 기록)", expanded=False):
@@ -527,7 +533,7 @@ elif menu == "비교과 활동 타임라인":
             </div>
             """, unsafe_allow_html=True)
             cache_key = f"act_{i}"
-            if st.button(f"생활기록부 연계 초안 생성 (ID: {i})"):
+            if st.button(f"배경 기재 문구 추출 (ID: {i})"):
                 if ai_model:
                     with st.spinner("초안 텍스트 추출 중..."):
                         try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"다음 활동 내용을 바탕으로 학교생활기록부에 즉시 기재할 수 있는 수준의 공식적이고 전문적인 문구를 작성하십시오. 'AI' 단어를 배제하고 개조식(~함, ~임) 또는 평어체로 작성 바랍니다. 내용: {row.get('핵심 활동 내용', '')}").text
@@ -578,13 +584,43 @@ elif menu == "상담 기록 관리":
         else: st.warning("조회된 이전 상담 이력이 없습니다.")
 
 # ==========================================
-# 11. 종합 컨설팅 리포트 출력 
+# 11. 종합 컨설팅 리포트 출력 (🔥 마크다운 제거 필터 + 구글 시트 영구 덮어쓰기 탑재)
 # ==========================================
 elif menu == "종합 컨설팅 리포트 출력":
     
     st.subheader("진학 컨설팅 종합 의견 산출")
-    st.write("내신, 모의고사, 비교과 데이터를 병합하여 입시 전문가 수준의 통합 전략을 즉시 도출합니다.")
+    st.write("내신, 모의고사, 비교과 데이터를 병합하여 입시 전문가 수준의 통합 전략을 즉시 도출하고 구체적으로 백업합니다.")
     
+    # 💡 공유되는 핵심 프롬프트 엔진 (AI 티 안나게 극한의 담임 교사 톤 정밀 조율)
+    master_prompt_template = """
+    당신은 한일고등학교의 20년 경력 베테랑 진학부장 자격을 가진 담임 교사입니다. 학생({name})의 성적 및 비교과 데이터를 정밀 분석하여 학부모와 학생에게 전달할 '교사 종합 의견서'를 작성하십시오.
+    누가 봐도 컴퓨터나 인공지능이 자동 생성한 느낌이 드는 뻔하고 광범위한 조언(예: '시간 관리를 잘해야 함', '오답 노트를 쓰세요')은 완전히 배제하십시오. 20년 차 교사의 예리한 통찰력이 돋보이도록 실제 취득한 과목명과 등급의 등락 추이를 정확히 짚어가며 구체적이고 현실적인 솔루션만을 작성해야 합니다.
+
+    [제공된 학생 데이터]
+    1. 최근 내신 성적 내역: {g_data}
+    2. 최근 모의고사 성적 추이: {m_data}
+    3. 비교과 활동 현황: {a_data}
+
+    [작성 항목 및 표기 방식]
+    [1. 학업 성취 종합 진단]
+    - 반드시 이 대괄호 제목 양식을 사용하고 아래 줄에 내용을 서술하십시오.
+    - 데이터에 나타난 과목명과 등급을 직접 명시하며 종결하십시오. (예: '수학 영역의 경우 1학기말 3등급에서 이번 고사 원점수 상승과 함께 예상 2등급으로 진입하여 긍정적 추이를 보임.')
+    
+    [2. 최우선 공략 과목 및 실천 전략]
+    - 구체적인 단원명이나 학습 방식을 교사 입장에서 명확하게 지시하십시오. (예: '영어 독해의 경우 빈칸 추론 기출 문항 3개년 매일 5문항씩 분석 필요함.')
+    
+    [3. 비교과 및 진로 연계 방향]
+    - 다음 학기에 세부능력 및 특기사항에 보완해야 할 구체적인 탐구 방향을 제안하십시오.
+    
+    [4. 담임 교사의 따뜻한 격려]
+    - 마지막 줄에는 학생의 이름({name})을 부르며 기운을 북돋아 주는 교사의 진심 어린 격려를 따뜻한 문장으로 딱 한 줄만 추가하십시오. (예: '로운아, 네 잠재력과 성실함을 선생님은 굳게 믿는다. 지치지 말고 함께 끝까지 달려보자.')
+
+    [🔥 엄격한 금지 규칙 - 위반 시 에러]
+    - 'AI', '인공지능', '제미나이', '컨설턴트', '플랫폼', '데이터 분석 결과' 등 시스템이 개입한 듯한 단어는 절대 금지합니다.
+    - asterisks(**), 하이픈(-), 별표(*), 샵(#) 등의 마크다운 기호는 절대 사용하지 마십시오. 종이에 출력했을 때 지저분한 기호가 노출되어 신뢰도가 떨어집니다. 문단 기호가 필요하다면 숫자(1., 2.)나 평서문으로만 매끄럽게 이어지게 하십시오.
+    - 1~3번 항목은 전문적이고 신뢰감을 주는 문어체 개조식(~함, ~임)으로 종결하십시오. 4번 격려 문장만 따뜻한 평어체로 작성합니다.
+    """
+
     c_btn1, c_btn2 = st.columns(2)
     with c_btn1:
         if st.button("현재 학생 리포트 생성", use_container_width=True):
@@ -593,34 +629,40 @@ elif menu == "종합 컨설팅 리포트 출력":
                     uid_scores = df_scores[df_scores['고유번호'] == sel_uid]
                     s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
                     g_data = uid_scores.tail(15)[['학기','시험','과목',s_col,'등급']].to_dict('records') if not uid_scores.empty else "기록 없음"
-                    
                     uid_mk = df_mock[df_mock['고유번호'] == sel_uid]
                     m_data = uid_mk.tail(2).drop(columns=['학번','표시식별','학생명','반','고유번호'], errors='ignore').to_dict('records') if not uid_mk.empty else "기록 없음"
-                    
                     uid_act = df_act[df_act['고유번호'] == sel_uid]
                     a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
                     
-                    master_prompt = f"""
-                    당신은 한일고등학교의 베테랑 담임 교사입니다. 학생({sel_name})의 데이터를 분석하여 학부모와 학생에게 제공할 '담임교사 종합 컨설팅 의견'을 작성하세요.
-                    일반론적이고 뻔한 조언은 배제하고, 철저히 제공된 데이터에 기반하여 구체적이고 실질적인 처방을 내려야 합니다. 
-
-                    [수집 데이터]
-                    1. 내신: {g_data}
-                    2. 모의고사: {m_data}
-                    3. 활동: {a_data}
-
-                    [필수 양식]
-                    1. 종합 진단: 성적 추이와 특징을 구체적 과목명과 함께 명시.
-                    2. 집중 전략: 시급한 과목 특정 후, 실질적 액션 플랜 제시.
-                    3. 진로 방향: 향후 보완할 비교과 활동 가이드.
-                    4. 맺음말: 이름({sel_name})을 부르며 단 한 줄의 따뜻한 격려.
-
-                    [규칙]
-                    - 'AI', '컨설턴트' 단어 금지. 
-                    - 1~3항목은 명사형 개조식 전문 작성.
-                    """
-                    try: st.session_state["ai_cache"]["master_consulting"] = ai_model.generate_content(master_prompt).text
-                    except Exception as e: st.error(f"생성 시스템 오류: {e}")
+                    p_text = master_prompt_template.format(name=sel_name, g_data=str(g_data), m_data=str(m_data), a_data=str(a_data))
+                    try:
+                        resp = ai_model.generate_content(p_text).text
+                        
+                        # 🚫 [2중 안전 장치] AI가 혹시라도 뱉어낸 마크다운 ** 기호 강제 강제 철거!
+                        resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
+                        
+                        st.session_state["ai_cache"]["master_consulting"] = resp
+                        
+                        # 💾 구글 시트 실시간 저장 (최신화 덮어쓰기 로직)
+                        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                        doc = gspread.authorize(creds).open("40기 마스터 파일")
+                        try: sh_c = doc.worksheet("72_종합컨설팅")
+                        except:
+                            sh_c = doc.add_worksheet(title="72_종합컨설팅", rows="1000", cols="5")
+                            sh_c.append_row(["고유번호", "학번", "이름", "컨설팅내용", "최근업데이트"])
+                        
+                        all_uids = sh_c.col_values(1)
+                        u_hakbun = sel_student.split(" ")[0]
+                        if str(sel_uid) in all_uids:
+                            row_idx = all_uids.index(str(sel_uid)) + 1
+                            sh_c.update_cell(row_idx, 4, resp)
+                            sh_c.update_cell(row_idx, 5, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                        else:
+                            sh_c.append_row([str(sel_uid), str(u_hakbun), str(sel_name), resp, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                        
+                        st.success("✅ 컨설팅 보고서가 도출되었으며 구글 드라이브에 안전하게 영구 업데이트되었습니다!")
+                    except Exception as e: st.error(f"생성 및 백업 시스템 오류: {e}")
             else: st.warning("AI 엔진 연결 상태를 확인해주십시오.")
 
     with c_btn2:
@@ -628,11 +670,23 @@ elif menu == "종합 컨설팅 리포트 출력":
             if ai_model:
                 class_uids = class_students['고유번호'].tolist()
                 class_names = class_students['학생명'].tolist()
+                class_hakbuns = class_students['학번'].tolist()
                 
                 my_bar = st.progress(0, text="학급 일괄 프로세스 진행 중. 창을 유지해 주십시오.")
                 success_count = 0
-                for i, (u_id, u_name) in enumerate(zip(class_uids, class_names)):
+                
+                # 구글 시트 세션 미리 한 번만 열기 (속도 최적화)
+                scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                doc = gspread.authorize(creds).open("40기 마스터 파일")
+                try: sh_c = doc.worksheet("72_종합컨설팅")
+                except:
+                    sh_c = doc.add_worksheet(title="72_종합컨설팅", rows="1000", cols="5")
+                    sh_c.append_row(["고유번호", "학번", "이름", "컨설팅내용", "최근업데이트"])
+                
+                for i, (u_id, u_name, u_hakbun) in enumerate(zip(class_uids, class_names, class_hakbuns)):
                     if u_id not in st.session_state["global_ai_cache"]: st.session_state["global_ai_cache"][u_id] = {}
+                    
                     if "master_consulting" in st.session_state["global_ai_cache"][u_id]:
                         success_count += 1
                     else:
@@ -645,18 +699,26 @@ elif menu == "종합 컨설팅 리포트 출력":
                         a_data = f"비교과 활동 총 {len(uid_act)}건" if not uid_act.empty else "활동 기록 없음"
                         real_name = u_name.split(" ")[-1] if " " in u_name else u_name
                         
-                        master_prompt = f"""
-                        당신은 한일고등학교의 베테랑 담임 교사입니다. 학생({real_name})의 데이터를 분석하여 '담임교사 종합 컨설팅 의견'을 작성하세요.
-                        [수집 데이터] 1.내신: {g_data} / 2.모의고사: {m_data} / 3.활동: {a_data}
-                        [필수 양식] 1.종합 진단 2.집중 전략 3.진로 방향 4.맺음말(격려 한 줄)
-                        [규칙] 개조식 작성, 구체적 데이터 기반, AI 단어 배제.
-                        """
+                        p_text = master_prompt_template.format(name=real_name, g_data=str(g_data), m_data=str(m_data), a_data=str(a_data))
                         
                         max_retries = 3
                         for attempt in range(max_retries):
                             try:
-                                resp = ai_model.generate_content(master_prompt).text
+                                resp = ai_model.generate_content(p_text).text
+                                # 기호 강제 삭제 제거 필터
+                                resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
+                                
                                 st.session_state["global_ai_cache"][u_id]["master_consulting"] = resp
+                                
+                                # 구글 시트 실시간 반영 (최신화 덮어쓰기)
+                                all_uids = sh_c.col_values(1)
+                                if str(u_id) in all_uids:
+                                    row_idx = all_uids.index(str(u_id)) + 1
+                                    sh_c.update_cell(row_idx, 4, resp)
+                                    sh_c.update_cell(row_idx, 5, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+                                else:
+                                    sh_c.append_row([str(u_id), str(u_hakbun), str(real_name), resp, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
+                                
                                 success_count += 1
                                 time.sleep(5.0) 
                                 break
@@ -664,15 +726,15 @@ elif menu == "종합 컨설팅 리포트 출력":
                                 error_msg = str(e)
                                 if "429" in error_msg or "Quota" in error_msg:
                                     if attempt < max_retries - 1:
-                                        my_bar.progress(i / len(class_uids), text=f"[시스템 대기] API 호출 한도 도달. 35초 후 {u_name} 데이터부터 자동 재개합니다.")
+                                        my_bar.progress(i / len(class_uids), text=f"[시스템 보호] 호출 제한 도달. 35초 대기 후 {u_name}부터 이어서 자동 재개합니다.")
                                         time.sleep(35.0)
                                         continue
-                                st.error(f"{u_name} 분석 중 심각한 오류 발생: {e}")
+                                st.error(f"{u_name} 분석 중 데이터 전송 누락: {e}")
                                 break
                             
                     my_bar.progress((i + 1) / len(class_uids), text=f"진행 상태: {u_name} ({i+1}/{len(class_uids)})")
                 
-                if success_count == len(class_uids): st.success(f"학급 전체({success_count}명) 분석 및 생성 프로세스가 완료되었습니다.")
+                if success_count == len(class_uids): st.success(f"학급 전체({success_count}명) 분석 및 구글 마스터 파일 최신화 저장이 완료되었습니다.")
             else: st.warning("AI 모델 접속에 실패했습니다.")
 
     st.markdown("---")
@@ -692,7 +754,7 @@ elif menu == "종합 컨설팅 리포트 출력":
     st.markdown("---")
     st.info("안내: 하단의 버튼을 클릭하면 최적화된 양식의 출력 전용 팝업창이 렌더링됩니다.")
 
-    # ================= 🖨️ 인쇄 전용 100% 공통 HTML 헤더 정의 (로고 적용) =================
+    # ================= 🖨️ 인쇄 전용 HTML 코드 헤더 정의 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     html_head = f"""
@@ -727,7 +789,6 @@ elif menu == "종합 컨설팅 리포트 출력":
     def build_student_report_html(target_uid, target_student_str):
         target_name = target_student_str.split(" ")[1] if " " in target_student_str else target_student_str
         
-        # 🌟 상단 헤더에 학교 로고를 자연스럽게 융합
         chunk = f"""
         <div style="display: flex; justify-content: space-between; align-items: flex-end; border-bottom: 3px solid #1E3A8A; padding-bottom: 15px; margin-bottom: 35px;">
             <div style="display: flex; align-items: center; gap: 15px;">
@@ -737,7 +798,7 @@ elif menu == "종합 컨설팅 리포트 출력":
             
         chunk += f"""
                 <div>
-                    <h1 style="font-size: 2.1rem; margin: 0; color: #0F172A; letter-spacing: -1.5px;">개별 맞춤형 진학 분석 리포트</h1>
+                    <h1 style="font-size: 2.1rem; margin: 0; color: #0F172A; letter-spacing: -1px;">개별 맞춤형 진학 분석 리포트</h1>
                     <div style="font-size: 1rem; color: #475569; font-weight: 600; margin-top: 5px;">한일고등학교 40기 진학컨설팅팀</div>
                 </div>
             </div>
@@ -914,7 +975,7 @@ elif menu == "종합 컨설팅 리포트 출력":
                 formatted_text = student_cache["master_consulting"].replace("\n", "<br>")
                 chunk += f"""<div class="ai-box">{formatted_text}</div>"""
             else:
-                chunk += """<div style='color:#DC2626; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 4px; border: 1px solid #FCA5A5;'>상단 메뉴에서 통합 분석 알고리즘을 먼저 실행해 주십시오.</div>"""
+                chunk += """<div style='color:#DC2626; font-weight:bold; padding: 15px; background: #FEF2F2; border-radius: 4px; border: 1px solid #FCA5A5;'>좌측 메뉴에서 통합 분석 알고리즘을 먼저 실행해 주십시오.</div>"""
             chunk += "</div>"
             
         return chunk
