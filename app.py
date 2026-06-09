@@ -205,14 +205,49 @@ with st.sidebar:
     d_idx = s_list.index(query_params["student"]) if "student" in query_params and query_params["student"] in s_list else 0
     sel_student = st.selectbox("컨설팅 대상 학생", s_list, index=d_idx)
     
-    if sel_student == "학생을 선택해주세요":
+   if sel_student == "학생을 선택해주세요":
         if "student" in st.query_params: del st.query_params["student"]
-        st.markdown(f"""
-        <div style="background-color: #FFFFFF; padding: 40px; border-radius: 4px; border: 1px solid #E2E8F0; text-align: center; margin-top: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.05);">
-            <h2 style="color: #1E3A8A; margin-bottom: 15px;">한일고등학교 통합 진학 컨설팅 시스템</h2>
-            <p style="font-size: 1.1rem; color: #475569; line-height: 1.8;">좌측 메뉴에서 <b>학급</b>과 <b>학생 이름</b>을 선택하여 개별 컨설팅 분석을 시작하십시오.</p>
+        
+        # 1. 🌟 고급스러운 메인 환영 배너 (그라데이션 효과)
+        st.markdown("""
+        <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 60px 30px; border-radius: 8px; text-align: center; color: white; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
+            <h1 style="color: white; font-size: 2.8rem; margin-bottom: 10px; letter-spacing: -1px; font-weight: 800;">한일고등학교 통합 진학 컨설팅 시스템</h1>
+            <p style="font-size: 1.2rem; opacity: 0.9; font-weight: 400; letter-spacing: 0.5px;">Hanil High School College Admission Consulting Platform Ver 2.0 Pro</p>
         </div>
         """, unsafe_allow_html=True)
+        
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        
+        # 2. 📌 시스템 주요 기능 요약 카드 (3단 구성)
+        st.markdown("<h3 style='color: #0F172A; font-weight: 800; font-size: 1.4rem;'>시스템 핵심 기능 안내</h3>", unsafe_allow_html=True)
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            st.markdown("""
+            <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">📈 다차원 성적 분석</h4>
+                <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">내신 5·9등급 환산 평점, 모의고사 누적 백분위 추이, 단일 문항 단위의 취약점 클러스터링 등 입체적인 데이터 분석을 제공합니다.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with c2:
+            st.markdown("""
+            <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">🤖 AI 맞춤형 처방전</h4>
+                <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">베테랑 진학 담당 교사의 시선으로 철저히 데이터에 기반한 개별 맞춤형 종합 총평과 학습 전략 리포트를 원클릭으로 생성합니다.</p>
+            </div>
+            """, unsafe_allow_html=True)
+        with c3:
+            st.markdown("""
+            <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">🖨️ 학급 자동화 및 일괄 출력</h4>
+                <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">학급 전체 인원의 AI 분석을 백그라운드에서 일괄 처리하며, 페이지 분할이 완벽하게 적용된 공식 리포트를 한 번에 인쇄합니다.</p>
+            </div>
+            """, unsafe_allow_html=True)
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        
+        # 3. 💡 시작하기 직관적 가이드
+        st.info("▶ **[ 컨설팅 시작하기 ]** 좌측 메뉴바에서 **'조회할 학급'**과 **'학생 이름'**을 선택하시면 해당 학생의 정밀 분석 대시보드가 활성화됩니다.")
+        
         st.stop()
         
     st.query_params["student"] = sel_student
