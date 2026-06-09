@@ -14,7 +14,7 @@ import streamlit.components.v1 as components
 # ==========================================
 # 🏫 학교 로고 설정 (여기에 로고 이미지 링크를 넣어주세요)
 # ==========================================
-SCHOOL_LOGO_URL = "https://upload.wikimedia.org/wikipedia/ko/thumb/4/4b/%ED%95%9C%EC%9D%BC%EA%B3%A0%EB%93%B1%ED%95%99%EA%B5%90_%EB%A1%9C%EA%B3%A0.svg/200px-%ED%95%9C%EC%9D%BC%EA%B3%A0%EB%93%B1%ED%95%99%EA%B5%90_%EB%A1%9C%EA%B3%A0.svg.png"
+SCHOOL_LOGO_URL = "https://github.com/seoinwoo87/hanil-40th/blob/main/%ED%95%9C%EC%9D%BC%EB%A6%AC%EB%B3%B8%EB%A7%88%ED%81%AC%EC%B2%AD.jpg?raw=true"
 
 # ==========================================
 # 1. 페이지 설정 및 전문가용 디자인 CSS
