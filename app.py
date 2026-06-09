@@ -147,7 +147,6 @@ def load_all_data():
                     df['반'] = df['학번'].apply(lambda x: f"{x[1]}반" if len(x) >= 4 else "기타")
                 n_col = next((c for c in df.columns if any(k in c for k in ['성명','이름'])), None)
                 if n_col:
-                    # 🚨 바로 이 부분! 'text명'이라는 오타를 '학생명'으로 고쳤습니다!
                     df['학생명'] = df[n_col].astype(str).str.strip()
                     df['표시식별'] = df['학번'] + " " + df['학생명']
                 return df
@@ -171,6 +170,14 @@ def load_all_data():
         return [pd.DataFrame()]*9
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans, df_consult_saved = load_all_data()
+
+# 👇 제가 실수로 빼먹었던 AI 모델 연결 코드 복구!
+try:
+    genai.configure(api_key=st.secrets["gemini_api_key"])
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    target_model_name = next((p for p in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro', 'models/gemini-1.0-pro'] if p in available_models), available_models[0] if available_models else None)
+    ai_model = genai.GenerativeModel(target_model_name) if target_model_name else None
+except Exception: ai_model = None
 # ==========================================
 # 5. 사이드바 메뉴 및 메인 랜딩 페이지 (들여쓰기 구조 수정 완결)
 # ==========================================
