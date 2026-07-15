@@ -1141,34 +1141,46 @@ elif menu == "교사용 통합 대시보드":
                 detail_display = detail_display.sort_values(['소속', '학번'])
                 st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
 
-       # ----------------------------------------
+     # ----------------------------------------
         # [탭 2] 학기말 성적 정밀 통계 및 랭킹
         # ----------------------------------------
         with tab_grade:
-            all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
-            if all_term_df.empty:
-                st.warning("선택하신 학기의 [학기말] 성적 데이터가 아직 입력되지 않았습니다.")
+            st.markdown("#### 📊 분석 범위 설정")
+            scope_choice = st.radio("조회할 데이터 범위를 선택하십시오.", [f"선택 학기 ({sel_term})", "전체 학기 누적 (종합 평점 산출)"], horizontal=True)
+            
+            if "누적" in scope_choice:
+                all_term_df = df_scores[df_scores['시험'] == '학기말'].copy()
+                title_prefix = "전체 학기 누적"
+                show_chart_and_subj = False # 🚨 누적일 경우 그래프와 과목별 상세 숨김
             else:
-                # 1. 과목별 성취도(A~E) 비율 분석 그래프
-                st.subheader("📊 과목별 성취도(A~E) 분포 비율 분석")
-                if '성취도' in all_term_df.columns:
-                    ach_df = all_term_df[all_term_df['성취도'].str.upper().isin(['A','B','C','D','E','P','F'])]
-                    if not ach_df.empty:
-                        ach_counts = ach_df.groupby(['과목', '성취도']).size().reset_index(name='학생수')
-                        ach_totals = ach_counts.groupby('과목')['학생수'].transform('sum')
-                        ach_counts['비율(%)'] = (ach_counts['학생수'] / ach_totals) * 100
-                        
-                        fig_ach = px.bar(ach_counts, x='과목', y='비율(%)', color='성취도', 
-                                         text=ach_counts['비율(%)'].apply(lambda x: f"{x:.1f}%"),
-                                         color_discrete_sequence=px.colors.qualitative.Pastel)
-                        fig_ach.update_traces(textposition="inside")
-                        fig_ach.update_layout(barmode='stack', yaxis=dict(title="비율(%)", range=[0,105]))
-                        st.plotly_chart(fig_ach, use_container_width=True)
+                all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
+                title_prefix = f"{sel_term}"
+                show_chart_and_subj = True
+
+            if all_term_df.empty:
+                st.warning(f"선택하신 기준의 [학기말] 성적 데이터가 아직 입력되지 않았습니다.")
+            else:
+                # 1. 과목별 성취도(A~E) 비율 분석 그래프 (선택 학기에만 표시)
+                if show_chart_and_subj:
+                    st.subheader(f"📊 {title_prefix} 과목별 성취도(A~E) 분포 비율 분석")
+                    if '성취도' in all_term_df.columns:
+                        ach_df = all_term_df[all_term_df['성취도'].str.upper().isin(['A','B','C','D','E','P','F'])]
+                        if not ach_df.empty:
+                            ach_counts = ach_df.groupby(['과목', '성취도']).size().reset_index(name='학생수')
+                            ach_totals = ach_counts.groupby('과목')['학생수'].transform('sum')
+                            ach_counts['비율(%)'] = (ach_counts['학생수'] / ach_totals) * 100
+                            
+                            fig_ach = px.bar(ach_counts, x='과목', y='비율(%)', color='성취도', 
+                                             text=ach_counts['비율(%)'].apply(lambda x: f"{x:.1f}%"),
+                                             color_discrete_sequence=px.colors.qualitative.Pastel)
+                            fig_ach.update_traces(textposition="inside")
+                            fig_ach.update_layout(barmode='stack', yaxis=dict(title="비율(%)", range=[0,105]))
+                            st.plotly_chart(fig_ach, use_container_width=True)
+                    
+                    st.markdown("---")
                 
-                st.markdown("---")
-                
-                # 2. 전교생 평점 및 등수 추출 로직 (🚨 제목 40기로 수정됨)
-                st.subheader("🏆 40기 학기말 종합 등수 및 주요 교과 평점")
+                # 2. 전교생 평점 및 등수 추출 로직 (누적/단일 공통)
+                st.subheader(f"🏆 40기 {title_prefix} 종합 등수 및 주요 교과 평점")
                 
                 s_col = next((c for c in all_term_df.columns if '점수' in c.replace(" ","")), '점수')
                 u_col = '단위' if '단위' in all_term_df.columns else ('이수단위' if '이수단위' in all_term_df.columns else '')
@@ -1179,11 +1191,11 @@ elif menu == "교사용 통합 대시보드":
                     all_term_df['임시단위'] = 1.0
                     u_col = '임시단위'
                     
-                # 9등급 자동 계산
+                # 🚨 핵심: 누적 학기일 경우 '학기'와 '과목'을 같이 묶어서 9등급을 산출해야 수학적으로 정확함!
                 def assign_9_tier_batch(group):
                     all_s_batch = group[s_col].dropna()
                     return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
-                all_term_df['9등급(자동)'] = all_term_df.groupby('과목', group_keys=False).apply(assign_9_tier_batch)
+                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'], group_keys=False).apply(assign_9_tier_batch)
                 
                 # 학생별 집계
                 def agg_student(student_df):
@@ -1199,6 +1211,9 @@ elif menu == "교사용 통합 대시보드":
                     math_sci = student_df[student_df['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
                     ms_u = math_sci[u_col].sum() if math_sci[u_col].sum() > 0 else 0
                     ms_g5 = (math_sci['등급'].apply(safe_numeric) * math_sci[u_col]).sum() / ms_u if ms_u > 0 else None
+                    
+                    # 소속(반)은 여러 학기가 섞여 있을 경우 가장 최근 학기 기준으로 표시
+                    student_df = student_df.sort_values('학기', ascending=False)
                     
                     return pd.Series({
                         '소속': student_df['반'].iloc[0] if '반' in student_df.columns else '-',
@@ -1223,22 +1238,20 @@ elif menu == "교사용 통합 대시보드":
                 show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
                              '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
                 
-                # 🚨 hide_index=True 적용하여 쓸데없는 왼쪽 순번 칸 삭제 및 완벽한 가운데 정렬!
                 st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
                 
-                st.markdown("---")
-                
-                # 3. 과목별 상세 랭킹
-                st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
-                sel_subj_dash = st.selectbox("조회할 교과목을 선택하십시오.", ["선택하세요"] + sorted(all_term_df['과목'].unique()))
-                
-                if sel_subj_dash != "선택하세요":
-                    subj_df = all_term_df[all_term_df['과목'] == sel_subj_dash].copy()
-                    subj_df['과목등수'] = subj_df[s_col].rank(ascending=False, method='min').astype(int)
-                    subj_df['전체백분위(%)'] = ((len(subj_df) - subj_df['과목등수'] + 1) / len(subj_df) * 100).round(2)
+                # 3. 과목별 상세 랭킹 (선택 학기에만 표시)
+                if show_chart_and_subj:
+                    st.markdown("---")
+                    st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
+                    sel_subj_dash = st.selectbox("조회할 교과목을 선택하십시오.", ["선택하세요"] + sorted(all_term_df['과목'].unique()))
                     
-                    show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
-                    show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
-                    
-                    # 🚨 여기도 hide_index=True 적용!
-                    st.dataframe(style_centered(show_subj), use_container_width=True, height=400, hide_index=True)
+                    if sel_subj_dash != "선택하세요":
+                        subj_df = all_term_df[all_term_df['과목'] == sel_subj_dash].copy()
+                        subj_df['과목등수'] = subj_df[s_col].rank(ascending=False, method='min').astype(int)
+                        subj_df['전체백분위(%)'] = ((len(subj_df) - subj_df['과목등수'] + 1) / len(subj_df) * 100).round(2)
+                        
+                        show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
+                        show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
+                        
+                        st.dataframe(style_centered(show_subj), use_container_width=True, height=400, hide_index=True)
