@@ -234,7 +234,7 @@ with st.sidebar:
             if not saved_match.empty:
                 st.session_state["global_ai_cache"][sel_uid]["master_consulting"] = saved_match.iloc[0]['컨설팅내용']
 
-    menu_list = ["내신 성적 분석", "모의고사 분석", "학습 성찰 리포트", "비교과 활동 타임라인", "상담 기록 관리", "종합 컨설팅 리포트 출력", "학년부장 통합 대시보드"]
+    menu_list = ["내신 성적 분석", "모의고사 분석", "학습 성찰 리포트", "비교과 활동 타임라인", "상담 기록 관리", "종합 컨설팅 리포트 출력", "교사용 통합 대시보드"]
     d_menu_idx = menu_list.index(query_params["menu"]) if "menu" in query_params and query_params["menu"] in menu_list else 0
     st.markdown("<br>", unsafe_allow_html=True)
     menu = st.radio("분석 메뉴", menu_list, index=d_menu_idx)
@@ -1068,13 +1068,13 @@ elif menu == "종합 컨설팅 리포트 출력":
     with col_print_class: components.html(button_class_html, height=60)
 
 # ==========================================
-# 12. 학년부장 통합 대시보드
+# 12. 교사용 통합 대시보드 (기존 탭 + 학기말 정밀 분석 탭 추가)
 # ==========================================
-elif menu == "학년부장 통합 대시보드":
+elif menu == "교사용 통합 대시보드":
     def check_dashboard_password():
         correct_pwd = st.secrets.get("dashboard_password", "1500")
         if st.session_state.get("dashboard_unlocked"): return True
-        st.markdown(f"<h2 style='color: #1E3A8A;'>🔒 학년부장 권한 인증</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color: #1E3A8A;'>🔒 교사용 권한 인증</h2>", unsafe_allow_html=True)
         pwd = st.text_input("보안 코드를 입력해주십시오.", type="password")
         if pwd == correct_pwd:
             st.session_state["dashboard_unlocked"] = True
@@ -1083,57 +1083,160 @@ elif menu == "학년부장 통합 대시보드":
         return False
 
     if check_dashboard_password():
-        st.markdown(f"<h2 style='color: #1E3A8A; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px;'>{sel_term} 학년 전체 통합 대시보드</h2>", unsafe_allow_html=True)
+        st.markdown(f"<h2 style='color: #1E3A8A; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px;'>{sel_term} 교사용 통합 대시보드</h2>", unsafe_allow_html=True)
         
-        all_term_students = df_scores[df_scores['학기'] == sel_term][['반', '학번', '학생명', '고유번호']].drop_duplicates()
+        tab_basic, tab_grade = st.tabs(["📊 학생 관리 기본 현황", "📈 학기말 성적 정밀 분석"])
         
-        if all_term_students.empty:
-            st.warning("선택하신 학기의 데이터가 존재하지 않습니다.")
-        else:
-            grade_summary = []
-            for _, stu_row in all_term_students.iterrows():
-                uid = stu_row['고유번호']
-                stu_class = stu_row['반']
-                stu_hakbun = str(stu_row['학번'])
-                stu_name = stu_row['학생명']
+        # ----------------------------------------
+        # [탭 1] 기존 학생 관리/상담 현황 (그대로 유지)
+        # ----------------------------------------
+        with tab_basic:
+            all_term_students = df_scores[df_scores['학기'] == sel_term][['반', '학번', '학생명', '고유번호']].drop_duplicates()
+            if all_term_students.empty:
+                st.warning("선택하신 학기의 데이터가 존재하지 않습니다.")
+            else:
+                grade_summary = []
+                for _, stu_row in all_term_students.iterrows():
+                    uid = stu_row['고유번호']
+                    stu_class = stu_row['반']
+                    stu_hakbun = str(stu_row['학번'])
+                    stu_name = stu_row['학생명']
+                    
+                    u_cs = df_counsel[df_counsel['고유번호']==uid] if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번'].astype(str)==stu_hakbun]
+                    cs_count = len(u_cs)
+                    last_date = u_cs['상담일자'].max() if not u_cs.empty and '상담일자' in u_cs.columns else "-"
+                    
+                    u_ac = df_act[df_act['고유번호']==uid]
+                    act_count = len(u_ac)
+                    
+                    grade_summary.append({"소속": stu_class, "학번": stu_hakbun, "이름": stu_name, "상담실적": cs_count, "최근등록일": last_date, "활동실적": act_count})
                 
-                u_cs = df_counsel[df_counsel['고유번호']==uid] if '고유번호' in df_counsel.columns else df_counsel[df_counsel['학번'].astype(str)==stu_hakbun]
-                cs_count = len(u_cs)
-                last_date = u_cs['상담일자'].max() if not u_cs.empty and '상담일자' in u_cs.columns else "-"
+                grade_df = pd.DataFrame(grade_summary)
+                class_stats = grade_df.groupby('소속').agg(
+                    재적인원=('학번', 'count'),
+                    상담진행인원=('상담실적', lambda x: (x > 0).sum()),
+                    총상담건수=('상담실적', 'sum'),
+                    총활동건수=('활동실적', 'sum')
+                ).reset_index()
                 
-                u_ac = df_act[df_act['고유번호']==uid]
-                act_count = len(u_ac)
+                c1, c2, c3 = st.columns(3)
+                total_students = class_stats['재적인원'].sum()
+                total_counseled = class_stats['상담진행인원'].sum()
+                best_class = class_stats.sort_values('총상담건수', ascending=False).iloc[0]['소속'] if not class_stats.empty and class_stats['총상담건수'].sum() > 0 else "-"
                 
-                grade_summary.append({"소속": stu_class, "학번": stu_hakbun, "이름": stu_name, "상담실적": cs_count, "최근등록일": last_date, "활동실적": act_count})
-            
-            grade_df = pd.DataFrame(grade_summary)
-            
-            class_stats = grade_df.groupby('소속').agg(
-                재적인원=('학번', 'count'),
-                상담진행인원=('상담실적', lambda x: (x > 0).sum()),
-                총상담건수=('상담실적', 'sum'),
-                총활동건수=('활동실적', 'sum')
-            ).reset_index()
-            
-            c1, c2, c3 = st.columns(3)
-            total_students = class_stats['재적인원'].sum()
-            total_counseled = class_stats['상담진행인원'].sum()
-            best_class = class_stats.sort_values('총상담건수', ascending=False).iloc[0]['소속'] if not class_stats.empty and class_stats['총상담건수'].sum() > 0 else "-"
-            
-            c1.metric("학년 전체 재적 인원", f"{total_students}명")
-            c2.metric("상담 이력 보유 인원", f"{total_counseled}명")
-            c3.metric("최우수 상담 학급", f"{best_class}")
-            
-            st.markdown("---")
-            st.subheader("학급별 컨설팅 진행 현황")
-            st.dataframe(style_centered(class_stats), use_container_width=True)
-            
-            st.markdown("---")
-            st.subheader("학생 세부 이력 명세")
-            
-            filter_class = st.selectbox("학급 필터링", ["전체"] + sorted(grade_df['소속'].unique().tolist()))
-            detail_display = grade_df.copy()
-            if filter_class != "전체": detail_display = detail_display[detail_display['소속'] == filter_class]
+                c1.metric("학년 전체 재적 인원", f"{total_students}명")
+                c2.metric("상담 이력 보유 인원", f"{total_counseled}명")
+                c3.metric("최우수 상담 학급", f"{best_class}")
                 
-            detail_display = detail_display.sort_values(['소속', '학번'])
-            st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
+                st.markdown("---")
+                st.subheader("학급별 컨설팅 진행 현황")
+                st.dataframe(style_centered(class_stats), use_container_width=True)
+                
+                st.markdown("---")
+                st.subheader("학생 세부 이력 명세")
+                filter_class = st.selectbox("학급 필터링", ["전체"] + sorted(grade_df['소속'].unique().tolist()))
+                detail_display = grade_df.copy()
+                if filter_class != "전체": detail_display = detail_display[detail_display['소속'] == filter_class]
+                    
+                detail_display = detail_display.sort_values(['소속', '학번'])
+                st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
+
+        # ----------------------------------------
+        # [탭 2] 학기말 성적 정밀 통계 및 랭킹 (신규 추가)
+        # ----------------------------------------
+        with tab_grade:
+            all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
+            if all_term_df.empty:
+                st.warning("선택하신 학기의 [학기말] 성적 데이터가 아직 입력되지 않았습니다.")
+            else:
+                # 1. 과목별 성취도(A~E) 비율 분석 그래프
+                st.subheader("📊 과목별 성취도(A~E) 분포 비율 분석")
+                if '성취도' in all_term_df.columns:
+                    ach_df = all_term_df[all_term_df['성취도'].str.upper().isin(['A','B','C','D','E','P','F'])]
+                    if not ach_df.empty:
+                        ach_counts = ach_df.groupby(['과목', '성취도']).size().reset_index(name='학생수')
+                        ach_totals = ach_counts.groupby('과목')['학생수'].transform('sum')
+                        ach_counts['비율(%)'] = (ach_counts['학생수'] / ach_totals) * 100
+                        
+                        fig_ach = px.bar(ach_counts, x='과목', y='비율(%)', color='성취도', 
+                                         text=ach_counts['비율(%)'].apply(lambda x: f"{x:.1f}%"),
+                                         color_discrete_sequence=px.colors.qualitative.Pastel)
+                        fig_ach.update_traces(textposition="inside")
+                        fig_ach.update_layout(barmode='stack', yaxis=dict(title="비율(%)", range=[0,105]))
+                        st.plotly_chart(fig_ach, use_container_width=True)
+                
+                st.markdown("---")
+                
+                # 2. 전교생 평점 및 등수 추출 로직
+                st.subheader("🏆 전교생 학기말 종합 등수 및 주요 교과 평점")
+                
+                s_col = next((c for c in all_term_df.columns if '점수' in c.replace(" ","")), '점수')
+                u_col = '단위' if '단위' in all_term_df.columns else ('이수단위' if '이수단위' in all_term_df.columns else '')
+                
+                all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
+                if u_col: all_term_df[u_col] = all_term_df[u_col].apply(safe_numeric)
+                else: 
+                    all_term_df['임시단위'] = 1.0
+                    u_col = '임시단위'
+                    
+                # 9등급 자동 계산
+                def assign_9_tier_batch(group):
+                    all_s_batch = group[s_col].dropna()
+                    return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
+                all_term_df['9등급(자동)'] = all_term_df.groupby('과목', group_keys=False).apply(assign_9_tier_batch)
+                
+                # 학생별 집계
+                def agg_student(student_df):
+                    total_u = student_df[u_col].sum() if student_df[u_col].sum() > 0 else 1
+                    g5 = (student_df['등급'].apply(safe_numeric) * student_df[u_col]).sum() / total_u
+                    g9 = (student_df['9등급(자동)'] * student_df[u_col]).sum() / total_u
+                    raw_sum = student_df[s_col].sum()
+                    
+                    kor_eng_math = student_df[student_df['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
+                    kem_u = kor_eng_math[u_col].sum() if kor_eng_math[u_col].sum() > 0 else 0
+                    kem_g5 = (kor_eng_math['등급'].apply(safe_numeric) * kor_eng_math[u_col]).sum() / kem_u if kem_u > 0 else None
+                    
+                    math_sci = student_df[student_df['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
+                    ms_u = math_sci[u_col].sum() if math_sci[u_col].sum() > 0 else 0
+                    ms_g5 = (math_sci['등급'].apply(safe_numeric) * math_sci[u_col]).sum() / ms_u if ms_u > 0 else None
+                    
+                    return pd.Series({
+                        '소속': student_df['반'].iloc[0] if '반' in student_df.columns else '-',
+                        '학번': student_df['학번'].iloc[0],
+                        '이름': student_df['학생명'].iloc[0],
+                        '총점합계': raw_sum,
+                        '5등급평점': g5,
+                        '9등급평점': g9,
+                        '국영수평점': kem_g5,
+                        '수과평점': ms_g5
+                    })
+                    
+                stu_agg = all_term_df.groupby('고유번호').apply(agg_student).reset_index(drop=True)
+                
+                # 전교 등수 계산 (평점은 낮을수록 좋음=True, 총점은 높을수록 좋음=False)
+                stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
+                stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
+                stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
+                stu_agg['등수(국영수)'] = stu_agg['국영수평점'].rank(ascending=True, method='min').astype('Int64')
+                stu_agg['등수(수과)'] = stu_agg['수과평점'].rank(ascending=True, method='min').astype('Int64')
+                
+                show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
+                             '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
+                
+                st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400)
+                
+                st.markdown("---")
+                
+                # 3. 과목별 상세 랭킹
+                st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
+                sel_subj_dash = st.selectbox("조회할 교과목을 선택하십시오.", ["선택하세요"] + sorted(all_term_df['과목'].unique()))
+                
+                if sel_subj_dash != "선택하세요":
+                    subj_df = all_term_df[all_term_df['과목'] == sel_subj_dash].copy()
+                    subj_df['과목등수'] = subj_df[s_col].rank(ascending=False, method='min').astype(int)
+                    subj_df['전체백분위(%)'] = ((len(subj_df) - subj_df['과목등수'] + 1) / len(subj_df) * 100).round(2)
+                    
+                    show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
+                    show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
+                    
+                    st.dataframe(style_centered(show_subj), use_container_width=True, height=400)
