@@ -1141,7 +1141,7 @@ elif menu == "교사용 통합 대시보드":
                 detail_display = detail_display.sort_values(['소속', '학번'])
                 st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
 
-     # ----------------------------------------
+    # ----------------------------------------
         # [탭 2] 학기말 성적 정밀 통계 및 랭킹
         # ----------------------------------------
         with tab_grade:
@@ -1151,7 +1151,7 @@ elif menu == "교사용 통합 대시보드":
             if "누적" in scope_choice:
                 all_term_df = df_scores[df_scores['시험'] == '학기말'].copy()
                 title_prefix = "전체 학기 누적"
-                show_chart_and_subj = False # 🚨 누적일 경우 그래프와 과목별 상세 숨김
+                show_chart_and_subj = False
             else:
                 all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
                 title_prefix = f"{sel_term}"
@@ -1179,7 +1179,7 @@ elif menu == "교사용 통합 대시보드":
                     
                     st.markdown("---")
                 
-                # 2. 전교생 평점 및 등수 추출 로직 (누적/단일 공통)
+                # 2. 전교생 평점 및 등수 추출 로직
                 st.subheader(f"🏆 40기 {title_prefix} 종합 등수 및 주요 교과 평점")
                 
                 s_col = next((c for c in all_term_df.columns if '점수' in c.replace(" ","")), '점수')
@@ -1191,28 +1191,38 @@ elif menu == "교사용 통합 대시보드":
                     all_term_df['임시단위'] = 1.0
                     u_col = '임시단위'
                     
-                # 🚨 핵심: 누적 학기일 경우 '학기'와 '과목'을 같이 묶어서 9등급을 산출해야 수학적으로 정확함!
                 def assign_9_tier_batch(group):
                     all_s_batch = group[s_col].dropna()
                     return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
                 all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'], group_keys=False).apply(assign_9_tier_batch)
                 
-                # 학생별 집계
+                # 🚨 핵심: 진로선택, 교양 등 '등급이 없는 과목'을 평점 분모에서 완벽히 제거하는 집계 로직
                 def agg_student(student_df):
-                    total_u = student_df[u_col].sum() if student_df[u_col].sum() > 0 else 1
-                    g5 = (student_df['등급'].apply(safe_numeric) * student_df[u_col]).sum() / total_u
-                    g9 = (student_df['9등급(자동)'] * student_df[u_col]).sum() / total_u
+                    student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
+                    student_df['num_unit'] = student_df[u_col].apply(safe_numeric)
+                    
+                    # 5등급용 (등급 숫자가 0보다 큰 유효 과목만 필터링)
+                    valid_g5 = student_df[student_df['num_grade'] > 0]
+                    total_u_g5 = valid_g5['num_unit'].sum() if valid_g5['num_unit'].sum() > 0 else 1
+                    g5 = (valid_g5['num_grade'] * valid_g5['num_unit']).sum() / total_u_g5
+                    
+                    # 9등급용 (마찬가지로 9등급 산출이 유효한 과목만)
+                    valid_g9 = student_df[student_df['9등급(자동)'] > 0]
+                    total_u_g9 = valid_g9['num_unit'].sum() if valid_g9['num_unit'].sum() > 0 else 1
+                    g9 = (valid_g9['9등급(자동)'] * valid_g9['num_unit']).sum() / total_u_g9
+                    
                     raw_sum = student_df[s_col].sum()
                     
-                    kor_eng_math = student_df[student_df['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
-                    kem_u = kor_eng_math[u_col].sum() if kor_eng_math[u_col].sum() > 0 else 0
-                    kem_g5 = (kor_eng_math['등급'].apply(safe_numeric) * kor_eng_math[u_col]).sum() / kem_u if kem_u > 0 else None
+                    # 국영수 평점 (등급 있는 국영수만 계산)
+                    kem_df = valid_g5[valid_g5['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
+                    kem_u = kem_df['num_unit'].sum()
+                    kem_g5 = (kem_df['num_grade'] * kem_df['num_unit']).sum() / kem_u if kem_u > 0 else None
                     
-                    math_sci = student_df[student_df['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
-                    ms_u = math_sci[u_col].sum() if math_sci[u_col].sum() > 0 else 0
-                    ms_g5 = (math_sci['등급'].apply(safe_numeric) * math_sci[u_col]).sum() / ms_u if ms_u > 0 else None
+                    # 수과 평점 (등급 있는 수과만 계산)
+                    ms_df = valid_g5[valid_g5['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
+                    ms_u = ms_df['num_unit'].sum()
+                    ms_g5 = (ms_df['num_grade'] * ms_df['num_unit']).sum() / ms_u if ms_u > 0 else None
                     
-                    # 소속(반)은 여러 학기가 섞여 있을 경우 가장 최근 학기 기준으로 표시
                     student_df = student_df.sort_values('학기', ascending=False)
                     
                     return pd.Series({
