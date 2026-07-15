@@ -12,7 +12,7 @@ import time
 import streamlit.components.v1 as components
 
 # ==========================================
-# 🏫 학교 로고 설정 (여기에 로고 이미지 링크를 넣어주세요)
+# 🏫 학교 로고 설정
 # ==========================================
 SCHOOL_LOGO_URL = "https://github.com/seoinwoo87/hanil-40th/blob/main/%ED%95%9C%EC%9D%BC%EB%A6%AC%EB%B3%B8%EB%A7%88%ED%81%AC%EC%B2%AD.jpg?raw=true"
 
@@ -126,7 +126,7 @@ def get_time_rank(row):
     return t_map.get(row.get('학기',''), 0) + e_map.get(row.get('시험',''), 0)
 
 # ==========================================
-# 4. 데이터 로드 (구글 시트 연동 + 72번 컨설팅백업 탭 결합)
+# 4. 데이터 로드
 # ==========================================
 @st.cache_resource
 def load_all_data():
@@ -171,15 +171,15 @@ def load_all_data():
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans, df_consult_saved = load_all_data()
 
-# 👇 제가 실수로 빼먹었던 AI 모델 연결 코드 복구!
 try:
     genai.configure(api_key=st.secrets["gemini_api_key"])
     available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
     target_model_name = next((p for p in ['models/gemini-1.5-flash', 'models/gemini-1.5-pro', 'models/gemini-pro', 'models/gemini-1.0-pro'] if p in available_models), available_models[0] if available_models else None)
     ai_model = genai.GenerativeModel(target_model_name) if target_model_name else None
 except Exception: ai_model = None
+
 # ==========================================
-# 5. 사이드바 메뉴 및 메인 랜딩 페이지 (들여쓰기 구조 수정 완결)
+# 5. 사이드바 메뉴 및 메인 랜딩 페이지
 # ==========================================
 query_params = st.query_params
 
@@ -206,48 +206,17 @@ with st.sidebar:
     d_idx = s_list.index(query_params["student"]) if "student" in query_params and query_params["student"] in s_list else 0
     sel_student = st.selectbox("컨설팅 대상 학생", s_list, index=d_idx)
 
-# 🚨 메인 랜딩 페이지 분기점 (왼쪽 벽에 정렬)
 if sel_student == "학생을 선택해주세요":
     if "student" in st.query_params: del st.query_params["student"]
-    
     st.markdown("""
     <div style="background: linear-gradient(135deg, #1E3A8A 0%, #3B82F6 100%); padding: 60px 30px; border-radius: 8px; text-align: center; color: white; margin-top: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
         <h1 style="color: white; font-size: 2.8rem; margin-bottom: 10px; letter-spacing: -1px; font-weight: 800;">한일고등학교 통합 진학 컨설팅 시스템</h1>
         <p style="font-size: 1.2rem; opacity: 0.9; font-weight: 400; letter-spacing: 0.5px;">Hanil High School College Admission Consulting Platform Ver 2.0 Pro</p>
     </div>
     """, unsafe_allow_html=True)
-    
     st.markdown("<br><br>", unsafe_allow_html=True)
-    
-    st.markdown("<h3 style='color: #0F172A; font-weight: 800; font-size: 1.4rem;'>시스템 핵심 기능 안내</h3>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.markdown("""
-        <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">📈 다차원 성적 분석</h4>
-            <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">내신 5·9등급 환산 평점, 모의고사 누적 백분위 추이, 단일 문항 단위의 취약점 클러스터링 등 입체적인 데이터 분석을 제공합니다.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with c2:
-        st.markdown("""
-        <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">🤖 AI 맞춤형 처방전</h4>
-            <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">베테랑 진학 담당 교사의 시선으로 철저히 데이터에 기반한 개별 맞춤형 종합 총평과 학습 전략 리포트를 원클릭으로 생성합니다.</p>
-        </div>
-        """, unsafe_allow_html=True)
-    with c3:
-        st.markdown("""
-        <div style="background: white; border: 1px solid #CBD5E1; border-top: 4px solid #1E3A8A; padding: 25px; border-radius: 6px; height: 100%; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
-            <h4 style="color: #0F172A; margin-top: 0; font-weight: 800; font-size: 1.15rem;">🖨️ 학급 자동화 및 일괄 출력</h4>
-            <p style="color: #475569; font-size: 0.95rem; line-height: 1.6; margin-bottom: 0;">학급 전체 인원의 AI 분석을 백그라운드에서 일괄 처리하며, 페이지 분할이 완벽하게 적용된 공식 리포트를 한 번에 인쇄합니다.</p>
-        </div>
-        """, unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.info("▶ **[ 컨설팅 시작하기 ]** 좌측 메뉴바에서 **'조회할 학급'**과 **'학생 이름'**을 선택하시면 해당 학생의 정밀 분석 대시보드가 활성화됩니다.")
     st.stop()
 
-# 🚨 학생 선택 완료 시 사이드바 후속 제어
 with st.sidebar:
     st.query_params["student"] = sel_student
     sel_uid = class_students[class_students['표시식별'] == sel_student]['고유번호'].iloc[0]
@@ -259,7 +228,6 @@ with st.sidebar:
     st.session_state["ai_cache"] = st.session_state["global_ai_cache"][sel_uid]
     st.session_state["current_student"] = sel_uid
 
-    # 💾 [구글 시트 연동 핵심] 새로고침 해도 기존에 백업된 컨설팅 데이터가 시트에 있으면 자동 로드!
     if "master_consulting" not in st.session_state["global_ai_cache"][sel_uid]:
         if not df_consult_saved.empty and '고유번호' in df_consult_saved.columns:
             saved_match = df_consult_saved[df_consult_saved['고유번호'].astype(str) == str(sel_uid)]
@@ -275,52 +243,81 @@ with st.sidebar:
 st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
 
 # ==========================================
-# 빠른 상담 메모 위젯
-# ==========================================
-if menu not in ["상담 기록 관리", "종합 컨설팅 리포트 출력", "학년부장 통합 대시보드"]:
-    with st.expander("빠른 상담 메모 (진행 중 기록)", expanded=False):
-        with st.form("quick_counsel_form", clear_on_submit=True):
-            qc1, qc2 = st.columns([1, 3])
-            with qc1:
-                q_date = st.date_input("상담 일자")
-                q_type = st.selectbox("상담 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"])
-            with qc2:
-                q_memo = st.text_area("주요 상담 내용", height=110, placeholder="현재 분석 화면의 주요 내용을 즉시 기록하십시오.")
-            
-            if st.form_submit_button("메모 저장"):
-                if q_memo.strip():
-                    with st.spinner("서버에 기록 중입니다..."):
-                        try:
-                            scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
-                            creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
-                            doc = gspread.authorize(creds).open("40기 마스터 파일")
-                            try: sh = doc.worksheet("71_상담기록")
-                            except:
-                                sh = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
-                                sh.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
-                            sh.append_row([sel_student.split(" ")[0], sel_name, str(q_date), q_type, q_memo])
-                            st.cache_resource.clear()
-                            st.success("기록이 성공적으로 저장되었습니다.")
-                        except Exception as e: st.error(f"저장 실패: {e}")
-                else:
-                    st.warning("메모 내용을 입력해주십시오.")
-
-# ==========================================
-# 6. 내신 분석
+# 6. 내신 분석 (🔥 학기말 그리드 뷰 및 등수, 강점/약점 분석기 추가)
 # ==========================================
 if menu == "내신 성적 분석":
-    t1, t2, t3 = st.tabs(["상세 성적", "학기별 평점", "과목군 추이"])
     uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
     s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
+
+    # 💡 1. 상단: 학기말 기준 강점/약점 과목 자동 분석기
+    f_term_for_badges = uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == '학기말')]
+    if not f_term_for_badges.empty:
+        subject_ranks = []
+        for _, r in f_term_for_badges.iterrows():
+            my_s = safe_numeric(r.get(s_col, 0))
+            all_s = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말') & (df_scores['과목'] == r['과목'])][s_col].apply(safe_numeric).dropna()
+            if len(all_s) > 0:
+                pct = ((all_s <= my_s).sum() / len(all_s)) * 100
+                subject_ranks.append({'과목': r['과목'], '백분위': pct})
+        
+        if subject_ranks:
+            sr_df = pd.DataFrame(subject_ranks).sort_values('백분위', ascending=False)
+            strengths = sr_df.head(2)['과목'].tolist()
+            weaknesses = sr_df.tail(2)['과목'].tolist()
+            
+            st.markdown(f"""
+            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
+                <div style="flex: 1; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 20px; border-radius: 8px;">
+                    <div style="color: #1E3A8A; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🔥 {sel_term} 강점 과목 (백분위 기준)</div>
+                    <div style="color: #1E40AF; font-size: 1.3rem; font-weight: 800;">{', '.join(strengths) if strengths else '-'}</div>
+                </div>
+                <div style="flex: 1; background: #FEF2F2; border: 1px solid #FECACA; padding: 20px; border-radius: 8px;">
+                    <div style="color: #991B1B; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🛠️ {sel_term} 보완 필요 과목 (백분위 기준)</div>
+                    <div style="color: #B91C1C; font-size: 1.3rem; font-weight: 800;">{', '.join(weaknesses) if weaknesses else '-'}</div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+    t1, t2, t3 = st.tabs(["상세 성적", "학기별 평점", "과목군 추이"])
     
     with t1:
         st.subheader(f"{sel_term} 상세 성적")
         exam = st.selectbox("시험 선택", ["1회고사", "2회고사", "학기말"])
         f = uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == exam)].copy()
+        
         if not f.empty:
             if exam == "학기말":
-                cols = st.columns(len(f))
-                for i, (_, r) in enumerate(f.iterrows()): cols[i].metric(r['과목'], f"{r.get('등급','-')}등급 ({r.get('성취도','')})".strip())
+                # 💡 2. 학기말 선택 시: 총점 기준 전교 예상 등수 계산
+                all_term_raw = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')]
+                raw_sums = all_term_raw.groupby('고유번호')[s_col].apply(lambda x: x.apply(safe_numeric).sum())
+                my_raw = raw_sums.get(sel_uid, 0)
+                my_raw_rank = (raw_sums > my_raw).sum() + 1
+                total_raw_st = len(raw_sums)
+                
+                st.info(f"🏆 **[{sel_term} 학기말]** 원점수 총합 기준 예상 등수: **전교 {my_raw_rank}등** / 전체 {total_raw_st}명")
+                st.markdown("<br>", unsafe_allow_html=True)
+
+                # 💡 3. 과목별 그리드 뷰 (한 줄에 4개씩 줄바꿈)
+                for i in range(0, len(f), 4):
+                    cols = st.columns(4)
+                    for j in range(4):
+                        if i + j < len(f):
+                            r = f.iloc[i + j]
+                            my_subj_s = safe_numeric(r.get(s_col, 0))
+                            all_subj_s = all_term_raw[all_term_raw['과목'] == r['과목']][s_col].apply(safe_numeric).dropna()
+                            subj_rank = (all_subj_s > my_subj_s).sum() + 1
+                            subj_total = len(all_subj_s)
+                            
+                            with cols[j]:
+                                st.markdown(f"""
+                                <div style="background:white; border: 1px solid #CBD5E1; padding: 18px 10px; border-radius: 6px; text-align: center; margin-bottom: 15px; border-top: 4px solid #1E3A8A; box-shadow: 0 2px 4px rgba(0,0,0,0.05);">
+                                    <div style="color:#64748B; font-size:1rem; font-weight:700; margin-bottom:8px;">{r['과목']}</div>
+                                    <div style="color:#0F172A; font-size:1.6rem; font-weight:800; margin-bottom:8px;">{r.get('등급','-')}등급 <span style="font-size:1.1rem; color:#475569;">({r.get('성취도','')})</span></div>
+                                    <div style="background:#F1F5F9; border-radius:4px; padding:6px; color:#DC2626; font-size:0.95rem; font-weight:800;">
+                                        전교 {subj_rank}등 <span style="color:#64748B; font-weight:600; font-size:0.85rem;">/ {subj_total}명</span>
+                                    </div>
+                                </div>
+                                """, unsafe_allow_html=True)
             else:
                 p_d = []
                 for _, r in f.iterrows():
@@ -340,17 +337,47 @@ if menu == "내신 성적 분석":
         st.subheader("학기말 성적 및 내신 평점 산출")
         f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
         u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
+        
         if not f_df.empty and u_col:
             f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
             sel_rows = st.data_editor(f_df[[c for c in ['학기','과목','점수','등급','성취도',u_col,'9등급(자동)'] if c in f_df.columns]], use_container_width=True)
             c_df = sel_rows[sel_rows[u_col].apply(safe_numeric)>0].copy()
+            
             if not c_df.empty:
-                t_u = c_df[u_col].apply(safe_numeric).sum()
-                g5 = (c_df['등급'].apply(safe_numeric)*c_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
-                g9 = (c_df['9등급(자동)']*c_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
+                # 💡 4. 학기말 전교생 GPA 계산하여 등수 추출하기
+                all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
+                all_term_df[u_col] = all_term_df[u_col].apply(safe_numeric)
+                all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
+                all_term_df['등급'] = all_term_df['등급'].apply(safe_numeric)
+                
+                # 전교생 9등급 자동 산출 (속도 최적화: 그룹별 연산)
+                def assign_9_tier_batch(group):
+                    all_s_batch = group[s_col].dropna()
+                    return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
+                all_term_df['9등급(자동)'] = all_term_df.groupby('과목', group_keys=False).apply(assign_9_tier_batch)
+                
+                # 학생별 GPA 합계 계산
+                def calc_gpas(student_df):
+                    valid_df = student_df[student_df[u_col] > 0]
+                    total_u = valid_df[u_col].sum()
+                    if total_u == 0: return pd.Series({'g5': 9.0, 'g9': 9.0})
+                    g5_val = (valid_df['등급'] * valid_df[u_col]).sum() / total_u
+                    g9_val = (valid_df['9등급(자동)'] * valid_df[u_col]).sum() / total_u
+                    return pd.Series({'g5': g5_val, 'g9': g9_val})
+                
+                gpas = all_term_df.groupby('고유번호').apply(calc_gpas)
+                
+                my_g5 = gpas.loc[sel_uid, 'g5'] if sel_uid in gpas.index else 0
+                my_g9 = gpas.loc[sel_uid, 'g9'] if sel_uid in gpas.index else 0
+                
+                # 평점은 '낮을수록' 등수가 높음 (오름차순 랭크)
+                rank_g5 = (gpas['g5'] < my_g5).sum() + 1
+                rank_g9 = (gpas['g9'] < my_g9).sum() + 1
+                total_st = len(gpas)
+
                 c1, c2 = st.columns(2)
-                c1.metric("5등급제 평균 평점", f"{g5:.2f} 등급")
-                c2.metric("9등급제 환산 평점", f"{g9:.2f} 등급")
+                c1.metric(f"5등급제 평균 평점 (전교 {rank_g5}등 / {total_st}명)", f"{my_g5:.2f} 등급")
+                c2.metric(f"9등급제 환산 평점 (전교 {rank_g9}등 / {total_st}명)", f"{my_g9:.2f} 등급")
         else: st.info("학기말 데이터와 '단위' 기준 데이터가 필요합니다.")
             
     with t3:
