@@ -243,40 +243,11 @@ with st.sidebar:
 st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
 
 # ==========================================
-# 6. 내신 분석 (🔥 학기말 그리드 뷰 및 등수, 강점/약점 분석기 추가)
+# 6. 내신 분석 (🔥 학기말 선택 시에만 강점/약점 표시되도록 이동)
 # ==========================================
 if menu == "내신 성적 분석":
     uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
     s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
-
-    # 💡 1. 상단: 학기말 기준 강점/약점 과목 자동 분석기
-    f_term_for_badges = uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == '학기말')]
-    if not f_term_for_badges.empty:
-        subject_ranks = []
-        for _, r in f_term_for_badges.iterrows():
-            my_s = safe_numeric(r.get(s_col, 0))
-            all_s = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말') & (df_scores['과목'] == r['과목'])][s_col].apply(safe_numeric).dropna()
-            if len(all_s) > 0:
-                pct = ((all_s <= my_s).sum() / len(all_s)) * 100
-                subject_ranks.append({'과목': r['과목'], '백분위': pct})
-        
-        if subject_ranks:
-            sr_df = pd.DataFrame(subject_ranks).sort_values('백분위', ascending=False)
-            strengths = sr_df.head(2)['과목'].tolist()
-            weaknesses = sr_df.tail(2)['과목'].tolist()
-            
-            st.markdown(f"""
-            <div style="display: flex; gap: 15px; margin-bottom: 25px;">
-                <div style="flex: 1; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 20px; border-radius: 8px;">
-                    <div style="color: #1E3A8A; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🔥 {sel_term} 강점 과목 (백분위 기준)</div>
-                    <div style="color: #1E40AF; font-size: 1.3rem; font-weight: 800;">{', '.join(strengths) if strengths else '-'}</div>
-                </div>
-                <div style="flex: 1; background: #FEF2F2; border: 1px solid #FECACA; padding: 20px; border-radius: 8px;">
-                    <div style="color: #991B1B; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🛠️ {sel_term} 보완 필요 과목 (백분위 기준)</div>
-                    <div style="color: #B91C1C; font-size: 1.3rem; font-weight: 800;">{', '.join(weaknesses) if weaknesses else '-'}</div>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
 
     t1, t2, t3 = st.tabs(["상세 성적", "학기별 평점", "과목군 추이"])
     
@@ -287,6 +258,35 @@ if menu == "내신 성적 분석":
         
         if not f.empty:
             if exam == "학기말":
+                # 💡 1. [수정됨] 학기말을 선택했을 때만 강점/약점 과목 자동 분석기 표시!
+                f_term_for_badges = uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == '학기말')]
+                if not f_term_for_badges.empty:
+                    subject_ranks = []
+                    for _, r in f_term_for_badges.iterrows():
+                        my_s = safe_numeric(r.get(s_col, 0))
+                        all_s = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말') & (df_scores['과목'] == r['과목'])][s_col].apply(safe_numeric).dropna()
+                        if len(all_s) > 0:
+                            pct = ((all_s <= my_s).sum() / len(all_s)) * 100
+                            subject_ranks.append({'과목': r['과목'], '백분위': pct})
+                    
+                    if subject_ranks:
+                        sr_df = pd.DataFrame(subject_ranks).sort_values('백분위', ascending=False)
+                        strengths = sr_df.head(2)['과목'].tolist()
+                        weaknesses = sr_df.tail(2)['과목'].tolist()
+                        
+                        st.markdown(f"""
+                        <div style="display: flex; gap: 15px; margin-bottom: 25px; margin-top: 10px;">
+                            <div style="flex: 1; background: #EFF6FF; border: 1px solid #BFDBFE; padding: 20px; border-radius: 8px;">
+                                <div style="color: #1E3A8A; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🔥 {sel_term} 강점 과목 (백분위 기준)</div>
+                                <div style="color: #1E40AF; font-size: 1.3rem; font-weight: 800;">{', '.join(strengths) if strengths else '-'}</div>
+                            </div>
+                            <div style="flex: 1; background: #FEF2F2; border: 1px solid #FECACA; padding: 20px; border-radius: 8px;">
+                                <div style="color: #991B1B; font-weight: 800; margin-bottom: 8px; font-size: 1.1rem;">🛠️ {sel_term} 보완 필요 과목 (백분위 기준)</div>
+                                <div style="color: #B91C1C; font-size: 1.3rem; font-weight: 800;">{', '.join(weaknesses) if weaknesses else '-'}</div>
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                 # 💡 2. 학기말 선택 시: 총점 기준 전교 예상 등수 계산
                 all_term_raw = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')]
                 raw_sums = all_term_raw.groupby('고유번호')[s_col].apply(lambda x: x.apply(safe_numeric).sum())
@@ -319,6 +319,7 @@ if menu == "내신 성적 분석":
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
+                # 💡 1, 2회고사 선택 시 막대그래프 출력
                 p_d = []
                 for _, r in f.iterrows():
                     all_e = df_scores[(df_scores['학기']==sel_term)&(df_scores['시험']==exam)&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()
