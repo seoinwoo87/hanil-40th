@@ -1141,8 +1141,8 @@ elif menu == "교사용 통합 대시보드":
                 detail_display = detail_display.sort_values(['소속', '학번'])
                 st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
 
-        # ----------------------------------------
-        # [탭 2] 학기말 성적 정밀 통계 및 랭킹 (신규 추가)
+       # ----------------------------------------
+        # [탭 2] 학기말 성적 정밀 통계 및 랭킹
         # ----------------------------------------
         with tab_grade:
             all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
@@ -1167,8 +1167,8 @@ elif menu == "교사용 통합 대시보드":
                 
                 st.markdown("---")
                 
-                # 2. 전교생 평점 및 등수 추출 로직
-                st.subheader("🏆 전교생 학기말 종합 등수 및 주요 교과 평점")
+                # 2. 전교생 평점 및 등수 추출 로직 (🚨 제목 40기로 수정됨)
+                st.subheader("🏆 40기 학기말 종합 등수 및 주요 교과 평점")
                 
                 s_col = next((c for c in all_term_df.columns if '점수' in c.replace(" ","")), '점수')
                 u_col = '단위' if '단위' in all_term_df.columns else ('이수단위' if '이수단위' in all_term_df.columns else '')
@@ -1213,7 +1213,7 @@ elif menu == "교사용 통합 대시보드":
                     
                 stu_agg = all_term_df.groupby('고유번호').apply(agg_student).reset_index(drop=True)
                 
-                # 전교 등수 계산 (평점은 낮을수록 좋음=True, 총점은 높을수록 좋음=False)
+                # 전교 등수 계산
                 stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
                 stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
                 stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
@@ -1223,7 +1223,8 @@ elif menu == "교사용 통합 대시보드":
                 show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
                              '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
                 
-                st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400)
+                # 🚨 hide_index=True 적용하여 쓸데없는 왼쪽 순번 칸 삭제 및 완벽한 가운데 정렬!
+                st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
                 
                 st.markdown("---")
                 
@@ -1239,4 +1240,5 @@ elif menu == "교사용 통합 대시보드":
                     show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
                     show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
                     
-                    st.dataframe(style_centered(show_subj), use_container_width=True, height=400)
+                    # 🚨 여기도 hide_index=True 적용!
+                    st.dataframe(style_centered(show_subj), use_container_width=True, height=400, hide_index=True)
