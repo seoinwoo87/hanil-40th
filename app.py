@@ -243,7 +243,42 @@ with st.sidebar:
 st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
 
 # ==========================================
-# 6. 내신 분석 (🔥 학기말 선택 시에만 강점/약점 표시되도록 이동)
+# 💡 [추가 기능] 퀵 상담 기록창 (어느 메뉴에서든 성적 보면서 바로 기록!)
+# ==========================================
+with st.expander(f"📝 {sel_name} 학생 퀵 상담 기록창 (성적 조회 중 즉시 입력 가능)", expanded=False):
+    with st.form("quick_counsel_form", clear_on_submit=True):
+        qc_cols = st.columns([1, 1])
+        with qc_cols[0]:
+            qc_date = st.date_input("상담 진행 일자", key="qc_date")
+        with qc_cols[1]:
+            qc_type = st.selectbox("상담 주요 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"], key="qc_type")
+        
+        qc_memo = st.text_area("상담 결과 및 주요 코멘트", height=100, placeholder="아래 성적이나 그래프를 보며 분석한 내용을 즉시 기록하세요.")
+        
+        if st.form_submit_button("상담 기록 구글 시트에 바로 저장하기 💾"):
+            if qc_memo.strip():
+                with st.spinner("구글 시트 '71_상담기록'에 저장 중..."):
+                    try:
+                        scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
+                        creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
+                        doc = gspread.authorize(creds).open("40기 마스터 파일")
+                        try: 
+                            sh_c = doc.worksheet("71_상담기록")
+                        except:
+                            sh_c = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
+                            sh_c.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
+                        
+                        sh_c.append_row([sel_student.split(" ")[0], sel_name, str(qc_date), qc_type, qc_memo])
+                        st.cache_resource.clear()
+                        st.success("✅ 퀵 상담 기록이 성공적으로 안전하게 저장되었습니다! (데이터 동기화를 위해 좌측 '데이터 동기화' 버튼을 눌러주세요)")
+                    except Exception as e:
+                        st.error(f"저장 실패: {e}")
+            else:
+                st.warning("상담 내용을 입력해 주세요.")
+
+
+# ==========================================
+# 6. 내신 분석 
 # ==========================================
 if menu == "내신 성적 분석":
     uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
@@ -258,7 +293,6 @@ if menu == "내신 성적 분석":
         
         if not f.empty:
             if exam == "학기말":
-                # 💡 1. [수정됨] 학기말을 선택했을 때만 강점/약점 과목 자동 분석기 표시!
                 f_term_for_badges = uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == '학기말')]
                 if not f_term_for_badges.empty:
                     subject_ranks = []
@@ -287,7 +321,6 @@ if menu == "내신 성적 분석":
                         </div>
                         """, unsafe_allow_html=True)
 
-                # 💡 2. 학기말 선택 시: 총점 기준 전교 예상 등수 계산
                 all_term_raw = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')]
                 raw_sums = all_term_raw.groupby('고유번호')[s_col].apply(lambda x: x.apply(safe_numeric).sum())
                 my_raw = raw_sums.get(sel_uid, 0)
@@ -297,7 +330,6 @@ if menu == "내신 성적 분석":
                 st.info(f"🏆 **[{sel_term} 학기말]** 원점수 총합 기준 예상 등수: **전교 {my_raw_rank}등** / 전체 {total_raw_st}명")
                 st.markdown("<br>", unsafe_allow_html=True)
 
-                # 💡 3. 과목별 그리드 뷰 (한 줄에 4개씩 줄바꿈)
                 for i in range(0, len(f), 4):
                     cols = st.columns(4)
                     for j in range(4):
@@ -319,7 +351,6 @@ if menu == "내신 성적 분석":
                                 </div>
                                 """, unsafe_allow_html=True)
             else:
-                # 💡 1, 2회고사 선택 시 막대그래프 출력
                 p_d = []
                 for _, r in f.iterrows():
                     all_e = df_scores[(df_scores['학기']==sel_term)&(df_scores['시험']==exam)&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()
@@ -345,19 +376,16 @@ if menu == "내신 성적 분석":
             c_df = sel_rows[sel_rows[u_col].apply(safe_numeric)>0].copy()
             
             if not c_df.empty:
-                # 💡 4. 학기말 전교생 GPA 계산하여 등수 추출하기
                 all_term_df = df_scores[(df_scores['학기'] == sel_term) & (df_scores['시험'] == '학기말')].copy()
                 all_term_df[u_col] = all_term_df[u_col].apply(safe_numeric)
                 all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
                 all_term_df['등급'] = all_term_df['등급'].apply(safe_numeric)
                 
-                # 전교생 9등급 자동 산출 (속도 최적화: 그룹별 연산)
                 def assign_9_tier_batch(group):
                     all_s_batch = group[s_col].dropna()
                     return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
                 all_term_df['9등급(자동)'] = all_term_df.groupby('과목', group_keys=False).apply(assign_9_tier_batch)
                 
-                # 학생별 GPA 합계 계산
                 def calc_gpas(student_df):
                     valid_df = student_df[student_df[u_col] > 0]
                     total_u = valid_df[u_col].sum()
@@ -371,7 +399,6 @@ if menu == "내신 성적 분석":
                 my_g5 = gpas.loc[sel_uid, 'g5'] if sel_uid in gpas.index else 0
                 my_g9 = gpas.loc[sel_uid, 'g9'] if sel_uid in gpas.index else 0
                 
-                # 평점은 '낮을수록' 등수가 높음 (오름차순 랭크)
                 rank_g5 = (gpas['g5'] < my_g5).sum() + 1
                 rank_g9 = (gpas['g9'] < my_g9).sum() + 1
                 total_st = len(gpas)
@@ -612,14 +639,13 @@ elif menu == "상담 기록 관리":
         else: st.warning("조회된 이전 상담 이력이 없습니다.")
 
 # ==========================================
-# 11. 종합 컨설팅 리포트 출력 (🔥 마크다운 제거 필터 + 구글 시트 영구 덮어쓰기 + 단일생성 자동재시도 탑재)
+# 11. 종합 컨설팅 리포트 출력 
 # ==========================================
 elif menu == "종합 컨설팅 리포트 출력":
     
     st.subheader("진학 컨설팅 종합 의견 산출")
     st.write("내신, 모의고사, 비교과 데이터를 병합하여 입시 전문가 수준의 통합 전략을 즉시 도출하고 구체적으로 백업합니다.")
     
-    # 💡 공유되는 핵심 프롬프트 엔진 (AI 티 안나게 극한의 담임 교사 톤 정밀 조율)
     master_prompt_template = """
     당신은 한일고등학교의 20년 경력 베테랑 진학부장 자격을 가진 담임 교사입니다. 학생({name})의 성적 및 비교과 데이터를 정밀 분석하여 학부모와 학생에게 전달할 '교사 종합 의견서'를 작성하십시오.
     누가 봐도 컴퓨터나 인공지능이 자동 생성한 느낌이 드는 뻔하고 광범위한 조언(예: '시간 관리를 잘해야 함', '오답 노트를 쓰세요')은 완전히 배제하십시오. 20년 차 교사의 예리한 통찰력이 돋보이도록 실제 취득한 과목명과 등급의 등락 추이를 정확히 짚어가며 구체적이고 현실적인 솔루션만을 작성해야 합니다.
@@ -664,18 +690,15 @@ elif menu == "종합 컨설팅 리포트 출력":
                     
                     p_text = master_prompt_template.format(name=sel_name, g_data=str(g_data), m_data=str(m_data), a_data=str(a_data))
                     
-                    # 🔥 [단일 생성에도 좀비 재시도 로직 추가!]
                     max_retries = 3
                     for attempt in range(max_retries):
                         try:
                             resp = ai_model.generate_content(p_text).text
                             
-                            # 🚫 [2중 안전 장치] 마크다운 기호 강제 철거
                             resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
                             
                             st.session_state["ai_cache"]["master_consulting"] = resp
                             
-                            # 💾 구글 시트 실시간 저장 (최신화 덮어쓰기 로직)
                             scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                             creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
                             doc = gspread.authorize(creds).open("40기 마스터 파일")
@@ -694,7 +717,7 @@ elif menu == "종합 컨설팅 리포트 출력":
                                 sh_c.append_row([str(sel_uid), str(u_hakbun), str(sel_name), resp, datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")])
                             
                             st.success("✅ 컨설팅 보고서가 도출되었으며 구글 드라이브에 안전하게 영구 업데이트되었습니다!")
-                            break # 성공 시 루프 탈출
+                            break
                             
                         except Exception as e:
                             error_msg = str(e)
@@ -702,9 +725,9 @@ elif menu == "종합 컨설팅 리포트 출력":
                                 if attempt < max_retries - 1:
                                     st.warning(f"⏳ 구글 API 무료 한도 도달! 35초 대기 후 자동으로 재시도합니다... (시도 {attempt+1}/{max_retries})")
                                     time.sleep(35.0)
-                                    continue # 35초 쉬고 다시 시도
+                                    continue 
                             st.error(f"생성 및 백업 시스템 오류: {e}")
-                            break # 다른 에러면 루프 탈출
+                            break
             else: st.warning("AI 엔진 연결 상태를 확인해주십시오.")
 
     with c_btn2:
@@ -717,7 +740,6 @@ elif menu == "종합 컨설팅 리포트 출력":
                 my_bar = st.progress(0, text="학급 일괄 프로세스 진행 중. 창을 유지해 주십시오.")
                 success_count = 0
                 
-                # 구글 시트 세션 미리 한 번만 열기 (속도 최적화)
                 scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                 creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
                 doc = gspread.authorize(creds).open("40기 마스터 파일")
@@ -747,12 +769,10 @@ elif menu == "종합 컨설팅 리포트 출력":
                         for attempt in range(max_retries):
                             try:
                                 resp = ai_model.generate_content(p_text).text
-                                # 기호 강제 삭제 제거 필터
                                 resp = resp.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
                                 
                                 st.session_state["global_ai_cache"][u_id]["master_consulting"] = resp
                                 
-                                # 구글 시트 실시간 반영 (최신화 덮어쓰기)
                                 all_uids = sh_c.col_values(1)
                                 if str(u_id) in all_uids:
                                     row_idx = all_uids.index(str(u_id)) + 1
@@ -796,7 +816,6 @@ elif menu == "종합 컨설팅 리포트 출력":
     st.markdown("---")
     st.info("안내: 하단의 버튼을 클릭하면 최적화된 양식의 출력 전용 팝업창이 렌더링됩니다.")
 
-    # ================= 🖨️ 인쇄 전용 HTML 코드 헤더 정의 =================
     today_str = datetime.datetime.now().strftime("%Y년 %m월 %d일")
     
     html_head = f"""
@@ -1068,7 +1087,7 @@ elif menu == "종합 컨설팅 리포트 출력":
     with col_print_class: components.html(button_class_html, height=60)
 
 # ==========================================
-# 12. 교사용 통합 대시보드 (기존 탭 + 학기말 정밀 분석 탭 추가)
+# 12. 교사용 통합 대시보드
 # ==========================================
 elif menu == "교사용 통합 대시보드":
     def check_dashboard_password():
@@ -1087,9 +1106,6 @@ elif menu == "교사용 통합 대시보드":
         
         tab_basic, tab_grade = st.tabs(["📊 학생 관리 기본 현황", "📈 학기말 성적 정밀 분석"])
         
-        # ----------------------------------------
-        # [탭 1] 기존 학생 관리/상담 현황 (그대로 유지)
-        # ----------------------------------------
         with tab_basic:
             all_term_students = df_scores[df_scores['학기'] == sel_term][['반', '학번', '학생명', '고유번호']].drop_duplicates()
             if all_term_students.empty:
@@ -1141,9 +1157,6 @@ elif menu == "교사용 통합 대시보드":
                 detail_display = detail_display.sort_values(['소속', '학번'])
                 st.dataframe(style_centered(detail_display), use_container_width=True, height=400)
 
-    # ----------------------------------------
-        # [탭 2] 학기말 성적 정밀 통계 및 랭킹
-        # ----------------------------------------
         with tab_grade:
             st.markdown("#### 📊 분석 범위 설정")
             scope_choice = st.radio("조회할 데이터 범위를 선택하십시오.", [f"선택 학기 ({sel_term})", "전체 학기 누적 (종합 평점 산출)"], horizontal=True)
@@ -1160,7 +1173,6 @@ elif menu == "교사용 통합 대시보드":
             if all_term_df.empty:
                 st.warning(f"선택하신 기준의 [학기말] 성적 데이터가 아직 입력되지 않았습니다.")
             else:
-                # 1. 과목별 성취도(A~E) 비율 분석 그래프 (선택 학기에만 표시)
                 if show_chart_and_subj:
                     st.subheader(f"📊 {title_prefix} 과목별 성취도(A~E) 분포 비율 분석")
                     if '성취도' in all_term_df.columns:
@@ -1179,7 +1191,6 @@ elif menu == "교사용 통합 대시보드":
                     
                     st.markdown("---")
                 
-                # 2. 전교생 평점 및 등수 추출 로직
                 st.subheader(f"🏆 40기 {title_prefix} 종합 등수 및 주요 교과 평점")
                 
                 s_col = next((c for c in all_term_df.columns if '점수' in c.replace(" ","")), '점수')
@@ -1196,29 +1207,24 @@ elif menu == "교사용 통합 대시보드":
                     return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
                 all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'], group_keys=False).apply(assign_9_tier_batch)
                 
-                # 🚨 핵심: 진로선택, 교양 등 '등급이 없는 과목'을 평점 분모에서 완벽히 제거하는 집계 로직
                 def agg_student(student_df):
                     student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
                     student_df['num_unit'] = student_df[u_col].apply(safe_numeric)
                     
-                    # 5등급용 (등급 숫자가 0보다 큰 유효 과목만 필터링)
                     valid_g5 = student_df[student_df['num_grade'] > 0]
                     total_u_g5 = valid_g5['num_unit'].sum() if valid_g5['num_unit'].sum() > 0 else 1
                     g5 = (valid_g5['num_grade'] * valid_g5['num_unit']).sum() / total_u_g5
                     
-                    # 9등급용 (마찬가지로 9등급 산출이 유효한 과목만)
                     valid_g9 = student_df[student_df['9등급(자동)'] > 0]
                     total_u_g9 = valid_g9['num_unit'].sum() if valid_g9['num_unit'].sum() > 0 else 1
                     g9 = (valid_g9['9등급(자동)'] * valid_g9['num_unit']).sum() / total_u_g9
                     
                     raw_sum = student_df[s_col].sum()
                     
-                    # 국영수 평점 (등급 있는 국영수만 계산)
                     kem_df = valid_g5[valid_g5['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
                     kem_u = kem_df['num_unit'].sum()
                     kem_g5 = (kem_df['num_grade'] * kem_df['num_unit']).sum() / kem_u if kem_u > 0 else None
                     
-                    # 수과 평점 (등급 있는 수과만 계산)
                     ms_df = valid_g5[valid_g5['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
                     ms_u = ms_df['num_unit'].sum()
                     ms_g5 = (ms_df['num_grade'] * ms_df['num_unit']).sum() / ms_u if ms_u > 0 else None
@@ -1238,7 +1244,6 @@ elif menu == "교사용 통합 대시보드":
                     
                 stu_agg = all_term_df.groupby('고유번호').apply(agg_student).reset_index(drop=True)
                 
-                # 전교 등수 계산
                 stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
                 stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
                 stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
@@ -1250,7 +1255,6 @@ elif menu == "교사용 통합 대시보드":
                 
                 st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
                 
-                # 3. 과목별 상세 랭킹 (선택 학기에만 표시)
                 if show_chart_and_subj:
                     st.markdown("---")
                     st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
