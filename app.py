@@ -167,7 +167,7 @@ def load_all_data():
         return [d.assign(고유번호=d.get('표시식별','')) for d in [df_sc, df_mk, df_rf, df_ac, df_cs]] + [df_m_info, df_m_ans, df_consult_saved]
     except Exception as e:
         st.error(f"데이터 로드 실패: {e}")
-        return [pd.DataFrame()]*9
+        return [pd.DataFrame()]*8
 
 df_scores, df_mock, df_ref, df_act, df_counsel, df_m_info, df_m_ans, df_consult_saved = load_all_data()
 
