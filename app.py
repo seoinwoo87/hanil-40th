@@ -438,13 +438,46 @@ elif menu == "모의고사 분석":
             st.subheader(f"최근 모의고사 종합 요약: {latest.get('시험명', '최근 시험')}")
             subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
             summary = []
+            
+            # 💡 [여기부터 수정됨] 에러를 잡는 방패막이 함수 추가
+            def f_val(k_list, target_k):
+                for col in latest.index:
+                    if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): 
+                        return latest[col]
+                return '-'
+
+            def safe_format(val, is_float=False):
+                val_str = str(val).strip()
+                # 빈칸, 하이픈, 미응시 등 숫자로 바꿀 수 없는 값이면 그냥 "-" 리턴
+                if pd.isna(val) or val_str in ['', '-', '미응시', '결시', 'nan', 'None']: 
+                    return "-"
+                try:
+                    # 숫자와 소수점만 남기고 다 지움
+                    clean_val = re.sub(r'[^0-9.]', '', val_str)
+                    if not clean_val: return "-"
+                    return f"{float(clean_val):.2f}" if is_float else f"{int(float(clean_val))}"
+                except:
+                    return "-"
+            
             for n, keys in subj_map.items():
-                def f_val(k_list, target_k):
-                    for col in latest.index:
-                        if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): return latest[col]
-                    return '-'
-                v_p = f_val(keys, '표'); v_b = f_val(keys, '백분'); v_g = f_val(keys, '등급')
-                summary.append({"과목": n, "표준점수": v_p, "백분위": f"{float(v_b):.2f}%" if v_b!='-' else "-", "등급": f"{int(float(v_g))}등급" if v_g!='-' else "-"})
+                v_p = f_val(keys, '표')
+                v_b = f_val(keys, '백분')
+                v_g = f_val(keys, '등급')
+                
+                # 가져온 값을 안전하게 변환
+                f_p = safe_format(v_p)
+                f_b = safe_format(v_b, is_float=True)
+                f_g = safe_format(v_g)
+
+                # 에러 나던 부분을 이렇게 깔끔하게 수정
+                summary.append({
+                    "과목": n, 
+                    "표준점수": f_p, 
+                    "백분위": f"{f_b}%" if f_b != "-" else "-", 
+                    "등급": f"{f_g}등급" if f_g != "-" else "-"
+                })
+            # 💡 [여기까지 수정됨]
+
             st.table(style_centered(pd.DataFrame(summary)))
             st.markdown("---")
             p_cols = [c for c in uid_mk.columns if '백분' in c]
@@ -460,7 +493,6 @@ elif menu == "모의고사 분석":
                 
             st.dataframe(style_centered(uid_mk.drop(columns=['학번', '표시식별', '학생명', '반', '고유번호'], errors='ignore')), use_container_width=True)
         else: st.info("모의고사 성적 기록이 존재하지 않습니다.")
-
     with mt2:
         st.subheader("단일 시험 오답 정밀 분석")
         if not df_m_info.empty and not df_m_ans.empty:
