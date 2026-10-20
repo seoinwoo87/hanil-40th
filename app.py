@@ -910,12 +910,12 @@ elif menu == "종합 컨설팅 리포트 출력":
         <div style="text-align: center; font-size: 1.5rem; font-weight: 800; background-color: #F1F5F9; padding: 15px; border-radius: 4px; color: #1E3A8A; border: 1px solid #E2E8F0; margin-bottom: 20px; letter-spacing: 2px;">대상자 : {target_student_str}</div>
         """
         
-if p_grade:
+        if p_grade:
             chunk += """<div class="no-break"><h3>[ Section 1 ] 학교 교과 내신 성적 분석</h3>"""
             uid_scores = df_scores[df_scores['고유번호'] == target_uid].copy()
             s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
             
-            # 💡 [추가] 특정 학기/시험의 평점을 계산해주는 내부 함수
+            # 💡 1학년 1학기 학기말 고정 및 선택 학기 모든 고사 평점 계산 로직
             def get_gpa(target_df, term, exam):
                 f_df = target_df[(target_df['학기'] == term) & (target_df['시험'] == exam)].copy()
                 if f_df.empty: return None, None
@@ -929,7 +929,6 @@ if p_grade:
                 g9 = (f_df['9등급(자동)']*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
                 return g5, g9
 
-            # 💡 [추가] 출력할 시험 목록 구성 (1-1 학기말 고정 + 선택된 학기의 모든 고사)
             exams_to_show = [("1학년 1학기", "학기말")]
             for ex in ["1회고사", "2회고사", "학기말"]:
                 if not uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == ex)].empty:
@@ -961,7 +960,7 @@ if p_grade:
                 chunk += "<tr><td colspan='3'>조회된 평점 데이터가 없습니다.</td></tr>"
             chunk += "</table>"
             
-            # 💡 [추가] 상세 내역도 1-1 학기말 + 최근 고사 각각 표출
+            # 💡 상세 내역 리스트 표출 로직
             details_to_show = [("1학년 1학기", "학기말")]
             uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
             if not uid_scores.empty and uid_scores['순서'].max() > 0:
