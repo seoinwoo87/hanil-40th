@@ -380,21 +380,25 @@ if menu == "내신 성적 분석":
                 all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
                 all_term_df['등급'] = all_term_df['등급'].apply(safe_numeric)
                 
-                # 💡 [수정] groupby.apply 에러 방지를 위해 transform 적용
+                # 💡 [수정1] 9등급 자동 산출 에러 방지용 transform
                 def assign_9_tier_batch(series):
                     all_s_batch = series.dropna()
                     return series.apply(lambda x: calc_9_tier(x, all_s_batch))
                 all_term_df['9등급(자동)'] = all_term_df.groupby('과목')[s_col].transform(assign_9_tier_batch)
                 
-                def calc_gpas(student_df):
-                    valid_df = student_df[student_df[u_col] > 0]
+                # 💡 [수정2] 평점 계산 KeyError 원천 차단 (직접 for문으로 DataFrame 구성)
+                gpas_data = []
+                for uid, grp in all_term_df.groupby('고유번호'):
+                    valid_df = grp[grp[u_col] > 0]
                     total_u = valid_df[u_col].sum()
-                    if total_u == 0: return pd.Series({'g5': 9.0, 'g9': 9.0})
-                    g5_val = (valid_df['등급'] * valid_df[u_col]).sum() / total_u
-                    g9_val = (valid_df['9등급(자동)'] * valid_df[u_col]).sum() / total_u
-                    return pd.Series({'g5': g5_val, 'g9': g9_val})
+                    if total_u == 0:
+                        gpas_data.append({'고유번호': uid, 'g5': 9.0, 'g9': 9.0})
+                    else:
+                        g5_val = (valid_df['등급'] * valid_df[u_col]).sum() / total_u
+                        g9_val = (valid_df['9등급(자동)'] * valid_df[u_col]).sum() / total_u
+                        gpas_data.append({'고유번호': uid, 'g5': g5_val, 'g9': g9_val})
                 
-                gpas = all_term_df.groupby('고유번호').apply(calc_gpas)
+                gpas = pd.DataFrame(gpas_data).set_index('고유번호') if gpas_data else pd.DataFrame(columns=['g5', 'g9'])
                 
                 my_g5 = gpas.loc[sel_uid, 'g5'] if sel_uid in gpas.index else 0
                 my_g9 = gpas.loc[sel_uid, 'g9'] if sel_uid in gpas.index else 0
@@ -422,7 +426,7 @@ if menu == "내신 성적 분석":
             if s_g: 
                 plot_t = trend_df[trend_df['교과군'].isin(s_g)]
                 
-                # 💡 [수정] 과목명이 달라져도 선이 끊기지 않도록 '교과군' 단위로 묶어서 평균내기
+                # 💡 [수정3] 과목명이 달라져도 선이 끊기지 않도록 교과군 단위로 묶어서 평균 계산
                 agg_t = plot_t.groupby(['시기', '순서', '교과군']).agg(
                     백분위=('백분위', 'mean'),
                     점수=('점수', 'mean')
@@ -448,6 +452,7 @@ elif menu == "모의고사 분석":
             subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
             summary = []
             
+            # 💡 [수정4] 모의고사 빈칸/결석 데이터 오류 방지 로직 (safe_format)
             def f_val(k_list, target_k):
                 for col in latest.index:
                     if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): 
@@ -626,7 +631,7 @@ elif menu == "비교과 활동 타임라인":
             if st.button(f"배경 기재 문구 추출 (ID: {i})"):
                 if ai_model:
                     with st.spinner("초안 텍스트 추출 중..."):
-                        try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"다음 활동 내용을 바탕으로 학교생활기록부에 즉시 기재할 수 있는 수준의 공식적이고 전문적인 문구를 작성하십시오. 'AI 단어를 배제하고 개조식(~함, ~임) 또는 평어체로 작성 바랍니다. 내용: {row.get('핵심 활동 내용', '')}").text
+                        try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"다음 활동 내용을 바탕으로 학교생활기록부에 즉시 기재할 수 있는 수준의 공식적이고 전문적인 문구를 작성하십시오. 'AI' 단어를 배제하고 개조식(~함, ~임) 또는 평어체로 작성 바랍니다. 내용: {row.get('핵심 활동 내용', '')}").text
                         except Exception as e: st.error(f"오류: {e}")
             if cache_key in st.session_state.get("ai_cache", {}): st.info(st.session_state["ai_cache"][cache_key])
     else: st.info("등록된 비교과 활동 내역이 없습니다.")
@@ -1237,13 +1242,15 @@ elif menu == "교사용 통합 대시보드":
                     all_term_df['임시단위'] = 1.0
                     u_col = '임시단위'
                     
-                # 💡 [수정] 교사 대시보드 쪽에도 transform을 적용하여 에러 방지
-                def assign_9_tier_batch(series):
+                # 💡 [수정5] 9등급 자동 산출 에러 방지용 transform
+                def assign_9_tier_batch_dash(series):
                     all_s_batch = series.dropna()
                     return series.apply(lambda x: calc_9_tier(x, all_s_batch))
-                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'])[s_col].transform(assign_9_tier_batch)
+                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'])[s_col].transform(assign_9_tier_batch_dash)
                 
-                def agg_student(student_df):
+                # 💡 [수정6] 대시보드 쪽 평점 계산 KeyError 원천 차단 (직접 for문으로 Data 구성)
+                stu_agg_data = []
+                for uid, student_df in all_term_df.groupby('고유번호'):
                     student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
                     student_df['num_unit'] = student_df[u_col].apply(safe_numeric)
                     
@@ -1267,7 +1274,8 @@ elif menu == "교사용 통합 대시보드":
                     
                     student_df = student_df.sort_values('학기', ascending=False)
                     
-                    return pd.Series({
+                    stu_agg_data.append({
+                        '고유번호': uid,
                         '소속': student_df['반'].iloc[0] if '반' in student_df.columns else '-',
                         '학번': student_df['학번'].iloc[0],
                         '이름': student_df['학생명'].iloc[0],
@@ -1277,19 +1285,20 @@ elif menu == "교사용 통합 대시보드":
                         '국영수평점': kem_g5,
                         '수과평점': ms_g5
                     })
+                
+                stu_agg = pd.DataFrame(stu_agg_data)
+                
+                if not stu_agg.empty:
+                    stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
+                    stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
+                    stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
+                    stu_agg['등수(국영수)'] = stu_agg['국영수평점'].rank(ascending=True, method='min').astype('Int64')
+                    stu_agg['등수(수과)'] = stu_agg['수과평점'].rank(ascending=True, method='min').astype('Int64')
                     
-                stu_agg = all_term_df.groupby('고유번호').apply(agg_student).reset_index(drop=True)
-                
-                stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
-                stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
-                stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
-                stu_agg['등수(국영수)'] = stu_agg['국영수평점'].rank(ascending=True, method='min').astype('Int64')
-                stu_agg['등수(수과)'] = stu_agg['수과평점'].rank(ascending=True, method='min').astype('Int64')
-                
-                show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
-                             '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
-                
-                st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
+                    show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
+                                 '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
+                    
+                    st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
                 
                 if show_chart_and_subj:
                     st.markdown("---")
