@@ -276,7 +276,6 @@ with st.expander(f"📝 {sel_name} 학생 퀵 상담 기록창 (성적 조회 �
             else:
                 st.warning("상담 내용을 입력해 주세요.")
 
-
 # ==========================================
 # 6. 내신 분석 
 # ==========================================
@@ -284,7 +283,7 @@ if menu == "내신 성적 분석":
     uid_scores = df_scores[df_scores['고유번호'] == sel_uid].copy()
     s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
 
-    t1, t2, t3 = st.tabs(["상세 성적", "학기별 평점", "과목군 추이"])
+    t1, t2, t3 = st.tabs(["상세 성적", "학기말 평점", "과목군 추이"])
     
     with t1:
         st.subheader(f"{sel_term} 상세 성적")
@@ -381,10 +380,11 @@ if menu == "내신 성적 분석":
                 all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
                 all_term_df['등급'] = all_term_df['등급'].apply(safe_numeric)
                 
-                def assign_9_tier_batch(group):
-                    all_s_batch = group[s_col].dropna()
-                    return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
-                all_term_df['9등급(자동)'] = all_term_df.groupby('과목', group_keys=False).apply(assign_9_tier_batch)
+                # 💡 [수정] groupby.apply 에러 방지를 위해 transform 적용
+                def assign_9_tier_batch(series):
+                    all_s_batch = series.dropna()
+                    return series.apply(lambda x: calc_9_tier(x, all_s_batch))
+                all_term_df['9등급(자동)'] = all_term_df.groupby('과목')[s_col].transform(assign_9_tier_batch)
                 
                 def calc_gpas(student_df):
                     valid_df = student_df[student_df[u_col] > 0]
@@ -417,12 +417,21 @@ if menu == "내신 성적 분석":
             trend_df['시기'] = trend_df['학기'] + " " + trend_df['시험']
             trend_df['순서'] = trend_df.apply(get_time_rank, axis=1)
             trend_df = trend_df.sort_values('순서')
+            
             s_g = st.multiselect("분석 교과군 선택", sorted(trend_df['교과군'].dropna().unique()), default=sorted(trend_df['교과군'].dropna().unique())[:1])
             if s_g: 
                 plot_t = trend_df[trend_df['교과군'].isin(s_g)]
-                fig_t = px.line(plot_t, x='시기', y='백분위', color='과목', markers=True, text=plot_t['점수'].apply(lambda x: f"{x:.2f}"))
+                
+                # 💡 [수정] 과목명이 달라져도 선이 끊기지 않도록 '교과군' 단위로 묶어서 평균내기
+                agg_t = plot_t.groupby(['시기', '순서', '교과군']).agg(
+                    백분위=('백분위', 'mean'),
+                    점수=('점수', 'mean')
+                ).reset_index().sort_values('순서')
+                
+                fig_t = px.line(agg_t, x='시기', y='백분위', color='교과군', markers=True, text=agg_t['점수'].apply(lambda x: f"{x:.2f}"))
                 fig_t.update_traces(textposition="top center")
-                fig_t.update_layout(yaxis=dict(title="백분위(%) - 상단일수록 우수", range=[-5, 110]))
+                fig_t.update_xaxes(categoryorder='array', categoryarray=agg_t['시기'].unique())
+                fig_t.update_layout(yaxis=dict(title="교과군 평균 백분위(%) - 상단일수록 우수", range=[-5, 110]))
                 st.plotly_chart(fig_t, use_container_width=True)
 
 # ==========================================
@@ -439,7 +448,6 @@ elif menu == "모의고사 분석":
             subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
             summary = []
             
-            # 💡 [여기부터 수정됨] 에러를 잡는 방패막이 함수 추가
             def f_val(k_list, target_k):
                 for col in latest.index:
                     if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): 
@@ -448,11 +456,9 @@ elif menu == "모의고사 분석":
 
             def safe_format(val, is_float=False):
                 val_str = str(val).strip()
-                # 빈칸, 하이픈, 미응시 등 숫자로 바꿀 수 없는 값이면 그냥 "-" 리턴
                 if pd.isna(val) or val_str in ['', '-', '미응시', '결시', 'nan', 'None']: 
                     return "-"
                 try:
-                    # 숫자와 소수점만 남기고 다 지움
                     clean_val = re.sub(r'[^0-9.]', '', val_str)
                     if not clean_val: return "-"
                     return f"{float(clean_val):.2f}" if is_float else f"{int(float(clean_val))}"
@@ -464,19 +470,16 @@ elif menu == "모의고사 분석":
                 v_b = f_val(keys, '백분')
                 v_g = f_val(keys, '등급')
                 
-                # 가져온 값을 안전하게 변환
                 f_p = safe_format(v_p)
                 f_b = safe_format(v_b, is_float=True)
                 f_g = safe_format(v_g)
 
-                # 에러 나던 부분을 이렇게 깔끔하게 수정
                 summary.append({
                     "과목": n, 
                     "표준점수": f_p, 
                     "백분위": f"{f_b}%" if f_b != "-" else "-", 
                     "등급": f"{f_g}등급" if f_g != "-" else "-"
                 })
-            # 💡 [여기까지 수정됨]
 
             st.table(style_centered(pd.DataFrame(summary)))
             st.markdown("---")
@@ -623,7 +626,7 @@ elif menu == "비교과 활동 타임라인":
             if st.button(f"배경 기재 문구 추출 (ID: {i})"):
                 if ai_model:
                     with st.spinner("초안 텍스트 추출 중..."):
-                        try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"다음 활동 내용을 바탕으로 학교생활기록부에 즉시 기재할 수 있는 수준의 공식적이고 전문적인 문구를 작성하십시오. 'AI' 단어를 배제하고 개조식(~함, ~임) 또는 평어체로 작성 바랍니다. 내용: {row.get('핵심 활동 내용', '')}").text
+                        try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(f"다음 활동 내용을 바탕으로 학교생활기록부에 즉시 기재할 수 있는 수준의 공식적이고 전문적인 문구를 작성하십시오. 'AI 단어를 배제하고 개조식(~함, ~임) 또는 평어체로 작성 바랍니다. 내용: {row.get('핵심 활동 내용', '')}").text
                         except Exception as e: st.error(f"오류: {e}")
             if cache_key in st.session_state.get("ai_cache", {}): st.info(st.session_state["ai_cache"][cache_key])
     else: st.info("등록된 비교과 활동 내역이 없습니다.")
@@ -1234,10 +1237,11 @@ elif menu == "교사용 통합 대시보드":
                     all_term_df['임시단위'] = 1.0
                     u_col = '임시단위'
                     
-                def assign_9_tier_batch(group):
-                    all_s_batch = group[s_col].dropna()
-                    return group[s_col].apply(lambda x: calc_9_tier(x, all_s_batch))
-                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'], group_keys=False).apply(assign_9_tier_batch)
+                # 💡 [수정] 교사 대시보드 쪽에도 transform을 적용하여 에러 방지
+                def assign_9_tier_batch(series):
+                    all_s_batch = series.dropna()
+                    return series.apply(lambda x: calc_9_tier(x, all_s_batch))
+                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'])[s_col].transform(assign_9_tier_batch)
                 
                 def agg_student(student_df):
                     student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
