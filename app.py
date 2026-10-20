@@ -910,35 +910,73 @@ elif menu == "종합 컨설팅 리포트 출력":
         <div style="text-align: center; font-size: 1.5rem; font-weight: 800; background-color: #F1F5F9; padding: 15px; border-radius: 4px; color: #1E3A8A; border: 1px solid #E2E8F0; margin-bottom: 20px; letter-spacing: 2px;">대상자 : {target_student_str}</div>
         """
         
-        if p_grade:
+if p_grade:
             chunk += """<div class="no-break"><h3>[ Section 1 ] 학교 교과 내신 성적 분석</h3>"""
             uid_scores = df_scores[df_scores['고유번호'] == target_uid].copy()
             s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
-            f_df = uid_scores[uid_scores['시험'] == '학기말'].copy()
-            u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
-            if not f_df.empty and u_col:
-                f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']=='학기말')&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+            
+            # 💡 [추가] 특정 학기/시험의 평점을 계산해주는 내부 함수
+            def get_gpa(target_df, term, exam):
+                f_df = target_df[(target_df['학기'] == term) & (target_df['시험'] == exam)].copy()
+                if f_df.empty: return None, None
+                u_col = '단위' if '단위' in f_df.columns else ('이수단위' if '이수단위' in f_df.columns else '')
+                if not u_col:
+                    f_df['임시단위'] = 1.0
+                    u_col = '임시단위'
+                f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']==r['시험'])&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
                 t_u = f_df[u_col].apply(safe_numeric).sum()
                 g5 = (f_df['등급'].apply(safe_numeric)*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
                 g9 = (f_df['9등급(자동)']*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
-                chunk += f"""
-                <table style="margin-bottom: 20px;">
-                    <tr style="background-color: #F8FAFC;">
-                        <th>{sel_term} 5등급제 환산 평점</th>
-                        <th>{sel_term} 9등급제 환산 평점</th>
-                    </tr>
+                return g5, g9
+
+            # 💡 [추가] 출력할 시험 목록 구성 (1-1 학기말 고정 + 선택된 학기의 모든 고사)
+            exams_to_show = [("1학년 1학기", "학기말")]
+            for ex in ["1회고사", "2회고사", "학기말"]:
+                if not uid_scores[(uid_scores['학기'] == sel_term) & (uid_scores['시험'] == ex)].empty:
+                    if (sel_term, ex) not in exams_to_show:
+                        exams_to_show.append((sel_term, ex))
+            
+            chunk += """
+            <table style="margin-bottom: 20px;">
+                <tr style="background-color: #F8FAFC;">
+                    <th>시험명</th>
+                    <th>5등급제 환산 평점</th>
+                    <th>9등급제 환산 평점</th>
+                </tr>
+            """
+            
+            has_gpa = False
+            for term, exam in exams_to_show:
+                g5, g9 = get_gpa(uid_scores, term, exam)
+                if g5 is not None:
+                    has_gpa = True
+                    chunk += f"""
                     <tr>
-                        <td style="font-size: 1.5rem; font-weight: 800; color: #1E3A8A;">{g5:.2f} 등급</td>
-                        <td style="font-size: 1.5rem; font-weight: 800; color: #334155;">{g9:.2f} 등급</td>
+                        <td style="font-weight: 700; color: #334155;">{term} {exam}</td>
+                        <td style="font-size: 1.2rem; font-weight: 800; color: #1E3A8A;">{g5:.2f} 등급</td>
+                        <td style="font-size: 1.2rem; font-weight: 800; color: #334155;">{g9:.2f} 등급</td>
                     </tr>
-                </table>
-                """
+                    """
+            if not has_gpa:
+                chunk += "<tr><td colspan='3'>조회된 평점 데이터가 없습니다.</td></tr>"
+            chunk += "</table>"
+            
+            # 💡 [추가] 상세 내역도 1-1 학기말 + 최근 고사 각각 표출
+            details_to_show = [("1학년 1학기", "학기말")]
             uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
             if not uid_scores.empty and uid_scores['순서'].max() > 0:
                 latest_order = uid_scores['순서'].max()
-                latest_df = uid_scores[uid_scores['순서'] == latest_order].copy()
-                latest_term = latest_df.iloc[0]['학기']
-                latest_exam = latest_df.iloc[0]['시험']
+                latest_df_unfiltered = uid_scores[uid_scores['순서'] == latest_order]
+                if not latest_df_unfiltered.empty:
+                    latest_term = latest_df_unfiltered.iloc[0]['학기']
+                    latest_exam = latest_df_unfiltered.iloc[0]['시험']
+                    if (latest_term, latest_exam) not in details_to_show:
+                        details_to_show.append((latest_term, latest_exam))
+            
+            for term, exam in details_to_show:
+                ex_df = uid_scores[(uid_scores['학기'] == term) & (uid_scores['시험'] == exam)].copy()
+                if ex_df.empty: continue
+                
                 def format_expected_grade(row):
                     my_s = safe_numeric(row.get(s_col, 0))
                     all_s = df_scores[(df_scores['학기']==row['학기']) & (df_scores['시험']==row['시험']) & (df_scores['과목']==row['과목'])][s_col].apply(safe_numeric).dropna()
@@ -946,14 +984,16 @@ elif menu == "종합 컨설팅 리포트 출력":
                     rank = (all_s > my_s).sum() + 1
                     total = len(all_s)
                     return f"{calc_5_tier(my_s, all_s)} / {calc_9_tier(my_s, all_s)}등급 [{rank}/{total}]"
-                latest_df['등급(예상 등수)'] = latest_df.apply(format_expected_grade, axis=1)
-                chunk += f"<div style='font-weight: 600; margin-bottom: 8px; color:#475569;'>▶ 최근 고사 상세 내역 ({latest_term} {latest_exam})</div>"
+                
+                ex_df['등급(예상 등수)'] = ex_df.apply(format_expected_grade, axis=1)
+                
+                chunk += f"<div style='font-weight: 600; margin-bottom: 8px; margin-top: 15px; color:#475569;'>▶ 상세 내역 ({term} {exam})</div>"
                 target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급(예상 등수)', '성취도']
-                display_cols = list(dict.fromkeys([c for c in target_cols if c in latest_df.columns]))
+                display_cols = list(dict.fromkeys([c for c in target_cols if c in ex_df.columns]))
                 chunk += "<table><tr>"
                 for col in display_cols: chunk += f"<th>{col}</th>"
                 chunk += "</tr>"
-                for _, row in latest_df[display_cols].iterrows():
+                for _, row in ex_df[display_cols].iterrows():
                     chunk += "<tr>"
                     for col in display_cols:
                         val = row[col]
@@ -961,7 +1001,10 @@ elif menu == "종합 컨설팅 리포트 출력":
                         chunk += f"<td>{val_str}</td>"
                     chunk += "</tr>"
                 chunk += "</table>"
-            else: chunk += "<p>조회된 교과 성적 데이터가 없습니다.</p>"
+                
+            if not has_gpa and uid_scores.empty:
+                chunk += "<p>조회된 교과 성적 데이터가 없습니다.</p>"
+            
             chunk += "</div>"
 
         if p_mock:
