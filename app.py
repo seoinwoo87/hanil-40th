@@ -969,8 +969,8 @@ elif menu == "종합 컨설팅 리포트 출력":
                 chunk += "<tr><td colspan='3'>조회된 평점 데이터가 없습니다.</td></tr>"
             chunk += "</table>"
             
-            # 💡 상세 내역 리스트 표출 로직
-            details_to_show = [("1학년 1학기", "학기말")]
+         # 💡 [수정] 1학년 1학기 학기말 과목 상세표는 빼고, '가장 최근 고사' 상세 내역만 딱 하나 보여주기
+            details_to_show = []
             uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
             if not uid_scores.empty and uid_scores['순서'].max() > 0:
                 latest_order = uid_scores['순서'].max()
@@ -978,8 +978,7 @@ elif menu == "종합 컨설팅 리포트 출력":
                 if not latest_df_unfiltered.empty:
                     latest_term = latest_df_unfiltered.iloc[0]['학기']
                     latest_exam = latest_df_unfiltered.iloc[0]['시험']
-                    if (latest_term, latest_exam) not in details_to_show:
-                        details_to_show.append((latest_term, latest_exam))
+                    details_to_show.append((latest_term, latest_exam))
             
             for term, exam in details_to_show:
                 ex_df = uid_scores[(uid_scores['학기'] == term) & (uid_scores['시험'] == exam)].copy()
@@ -995,7 +994,7 @@ elif menu == "종합 컨설팅 리포트 출력":
                 
                 ex_df['등급(예상 등수)'] = ex_df.apply(format_expected_grade, axis=1)
                 
-                chunk += f"<div style='font-weight: 600; margin-bottom: 8px; margin-top: 15px; color:#475569;'>▶ 상세 내역 ({term} {exam})</div>"
+                chunk += f"<div style='font-weight: 600; margin-bottom: 8px; margin-top: 15px; color:#475569;'>▶ 최근 고사 상세 내역 ({term} {exam})</div>"
                 target_cols = ['교과군', '과목', '단위', '이수단위', s_col, '원점수', '등급(예상 등수)', '성취도']
                 display_cols = list(dict.fromkeys([c for c in target_cols if c in ex_df.columns]))
                 chunk += "<table><tr>"
