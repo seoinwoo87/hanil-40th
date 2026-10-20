@@ -923,10 +923,19 @@ elif menu == "종합 컨설팅 리포트 출력":
                 if not u_col:
                     f_df['임시단위'] = 1.0
                     u_col = '임시단위'
+                
+                # 💡 [수정] 9등급뿐만 아니라 5등급도 원점수 기반 '자동 예상 등급' 산출!
                 f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']==r['시험'])&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+                f_df['5등급(자동)'] = f_df.apply(lambda r: calc_5_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']==r['시험'])&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
+                
                 t_u = f_df[u_col].apply(safe_numeric).sum()
-                g5 = (f_df['등급'].apply(safe_numeric)*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
-                g9 = (f_df['9등급(자동)']*f_df[u_col].apply(safe_numeric)).sum()/t_u if t_u > 0 else 0
+                
+                # 시트에 '등급'이 비어있는 중간고사(1, 2회고사)면 '5등급(자동)'을 사용하도록 보완
+                f_df['실제등급'] = f_df.get('등급', 0).apply(safe_numeric)
+                f_df['최종5등급'] = f_df.apply(lambda r: r['실제등급'] if r['실제등급'] > 0 else r['5등급(자동)'], axis=1)
+                
+                g5 = (f_df['최종5등급'] * f_df[u_col].apply(safe_numeric)).sum() / t_u if t_u > 0 else 0
+                g9 = (f_df['9등급(자동)'] * f_df[u_col].apply(safe_numeric)).sum() / t_u if t_u > 0 else 0
                 return g5, g9
 
             exams_to_show = [("1학년 1학기", "학기말")]
