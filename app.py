@@ -380,13 +380,11 @@ if menu == "내신 성적 분석":
                 all_term_df[s_col] = all_term_df[s_col].apply(safe_numeric)
                 all_term_df['등급'] = all_term_df['등급'].apply(safe_numeric)
                 
-                # 💡 [수정1] 9등급 자동 산출 에러 방지용 transform
                 def assign_9_tier_batch(series):
                     all_s_batch = series.dropna()
                     return series.apply(lambda x: calc_9_tier(x, all_s_batch))
                 all_term_df['9등급(자동)'] = all_term_df.groupby('과목')[s_col].transform(assign_9_tier_batch)
                 
-                # 💡 [수정2] 평점 계산 KeyError 원천 차단 (직접 for문으로 DataFrame 구성)
                 gpas_data = []
                 for uid, grp in all_term_df.groupby('고유번호'):
                     valid_df = grp[grp[u_col] > 0]
@@ -426,7 +424,6 @@ if menu == "내신 성적 분석":
             if s_g: 
                 plot_t = trend_df[trend_df['교과군'].isin(s_g)]
                 
-                # 💡 [수정3] 과목명이 달라져도 선이 끊기지 않도록 교과군 단위로 묶어서 평균 계산
                 agg_t = plot_t.groupby(['시기', '순서', '교과군']).agg(
                     백분위=('백분위', 'mean'),
                     점수=('점수', 'mean')
@@ -452,7 +449,6 @@ elif menu == "모의고사 분석":
             subj_map = {"국어": ["국어"], "수학": ["수학"], "영어": ["영어"], "한국사": ["한국사", "국사"], "사탐": ["사탐", "사회"], "과탐": ["과탐", "과학"]}
             summary = []
             
-            # 💡 [수정4] 모의고사 빈칸/결석 데이터 오류 방지 로직 (safe_format)
             def f_val(k_list, target_k):
                 for col in latest.index:
                     if any(s in str(col).replace(" ", "").replace("_", "").lower() for s in k_list) and target_k in str(col): 
@@ -915,7 +911,6 @@ elif menu == "종합 컨설팅 리포트 출력":
             uid_scores = df_scores[df_scores['고유번호'] == target_uid].copy()
             s_col = next((c for c in uid_scores.columns if '점수' in c.replace(" ","")), '점수')
             
-            # 💡 1학년 1학기 학기말 고정 및 선택 학기 모든 고사 평점 계산 로직
             def get_gpa(target_df, term, exam):
                 f_df = target_df[(target_df['학기'] == term) & (target_df['시험'] == exam)].copy()
                 if f_df.empty: return None, None
@@ -923,17 +918,11 @@ elif menu == "종합 컨설팅 리포트 출력":
                 if not u_col:
                     f_df['임시단위'] = 1.0
                     u_col = '임시단위'
-                
-                # 💡 [수정] 9등급뿐만 아니라 5등급도 원점수 기반 '자동 예상 등급' 산출!
                 f_df['9등급(자동)'] = f_df.apply(lambda r: calc_9_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']==r['시험'])&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
                 f_df['5등급(자동)'] = f_df.apply(lambda r: calc_5_tier(safe_numeric(r.get(s_col,0)), df_scores[(df_scores['학기']==r['학기'])&(df_scores['시험']==r['시험'])&(df_scores['과목']==r['과목'])][s_col].apply(safe_numeric).dropna()), axis=1)
-                
                 t_u = f_df[u_col].apply(safe_numeric).sum()
-                
-                # 시트에 '등급'이 비어있는 중간고사(1, 2회고사)면 '5등급(자동)'을 사용하도록 보완
                 f_df['실제등급'] = f_df.get('등급', 0).apply(safe_numeric)
                 f_df['최종5등급'] = f_df.apply(lambda r: r['실제등급'] if r['실제등급'] > 0 else r['5등급(자동)'], axis=1)
-                
                 g5 = (f_df['최종5등급'] * f_df[u_col].apply(safe_numeric)).sum() / t_u if t_u > 0 else 0
                 g9 = (f_df['9등급(자동)'] * f_df[u_col].apply(safe_numeric)).sum() / t_u if t_u > 0 else 0
                 return g5, g9
@@ -969,7 +958,6 @@ elif menu == "종합 컨설팅 리포트 출력":
                 chunk += "<tr><td colspan='3'>조회된 평점 데이터가 없습니다.</td></tr>"
             chunk += "</table>"
             
-         # 💡 [수정] 1학년 1학기 학기말 과목 상세표는 빼고, '가장 최근 고사' 상세 내역만 딱 하나 보여주기
             details_to_show = []
             uid_scores['순서'] = uid_scores.apply(get_time_rank, axis=1)
             if not uid_scores.empty and uid_scores['순서'].max() > 0:
@@ -1033,13 +1021,31 @@ elif menu == "종합 컨설팅 리포트 출력":
                     return 10 + raw_subjects.index(x)*0.1
                 ordered_subjects = sorted(raw_subjects, key=sort_key)
                 
+                # 🔥 최약점 과목 찾기 (가장 최근 시험에서 백분위가 가장 낮은 과목 탐색)
+                lowest_subj = None
+                min_perc = 999.0
+                if len(uid_mk) > 0:
+                    last_idx = uid_mk.index[-1]
+                    for subj in ordered_subjects:
+                        for col in uid_mk.columns:
+                            col_clean = str(col).replace(" ", "")
+                            if subj in col_clean and '백분' in col_clean:
+                                try:
+                                    val = float(re.sub(r'[^0-9.]', '', str(uid_mk.loc[last_idx, col])))
+                                    if val < min_perc:
+                                        min_perc = val
+                                        lowest_subj = subj
+                                except: pass
+
                 chunk += "<table><tr><th style='border-top: none;'>평가명</th>"
                 for subj in ordered_subjects: chunk += f"<th style='border-top: none;'>{subj}</th>"
                 chunk += "</tr>"
                 
-                for _, row_mk in uid_mk.iterrows():
+                for row_idx_val, row_mk in uid_mk.iterrows():
                     exam_name = row_mk.get('시험명', '-')
                     chunk += f"<tr style='font-size: 0.85rem;'><td style='font-weight:700; background:#F8FAFC;'>{exam_name}</td>"
+                    is_latest_row = (row_idx_val == uid_mk.index[-1])
+                    
                     for subj in ordered_subjects:
                         v_p, v_b, v_g = '-', '-', '-'
                         for col in row_mk.index:
@@ -1055,6 +1061,7 @@ elif menu == "종합 컨설팅 리포트 출력":
                         f_std = safe_fmt(v_p)
                         f_perc = safe_fmt(v_b, is_float=True)
                         f_grade = safe_fmt(v_g)
+                        
                         if subj in ["영어", "한국사", "국사"] or (f_std == "-" and f_perc == "-"):
                             if f_grade != "-": display_str = f"<span style='font-weight:800; color:#1E3A8A; font-size: 1rem;'>{f_grade}등급</span>"
                             else: display_str = "-"
@@ -1063,6 +1070,11 @@ elif menu == "종합 컨설팅 리포트 출력":
                             f_grade_str = f"{f_grade}등급" if f_grade != "-" else "-"
                             display_str = f"<div style='text-align:left; display:inline-block; line-height:1.5;'><small style='color:#64748B;'>표준:</small> {f_std}<br><small style='color:#64748B;'>백분:</small> <span style='font-weight:700;'>{f_perc_str}</span><br><small style='color:#64748B;'>등급:</small> <span style='color:#1E3A8A; font-weight:800;'>{f_grade_str}</span></div>"
                             if f_std == "-" and f_perc == "-" and f_grade == "-": display_str = "-"
+                        
+                        # 🔥 최약점 과목 붉은색 하이라이트 적용
+                        if is_latest_row and subj == lowest_subj and min_perc != 999.0 and display_str != "-":
+                            display_str = f"<div style='border: 2px solid #DC2626; padding: 6px; border-radius: 6px; background-color: #FEF2F2;'>{display_str}<div style='color:#DC2626; font-size:0.75rem; font-weight:800; margin-top:4px;'>🔥최우선 보완</div></div>"
+
                         chunk += f"<td>{display_str}</td>"
                     chunk += "</tr>"
                 chunk += "</table>"
@@ -1085,6 +1097,8 @@ elif menu == "종합 컨설팅 리포트 출력":
             curr_y = sel_term[:3] if sel_term else ""
             t_col = next((c for c in df_act.columns if any(k in c for k in ['학년', '학기', '시기', '연도'])), None)
             u_ac = df_act[(df_act['고유번호'] == target_uid) & (df_act[t_col].str.contains(curr_y, na=False))].copy() if t_col else df_act[df_act['고유번호'] == target_uid].copy()
+            col_type = next((c for c in u_ac.columns if '성격' in c), None) if not u_ac.empty else None
+            
             if not u_ac.empty:
                 col_comp = next((c for c in u_ac.columns if '역량' in c), None)
                 comp_standards = ["탐구/지식처리", "창의적 사고", "비판적 사고", "자기주도/관리", "협력/소통", "공동체/윤리"]
@@ -1095,6 +1109,17 @@ elif menu == "종합 컨설팅 리포트 출력":
                     count = u_ac[col_comp].str.contains(comp_name.split('/')[0], na=False).sum() if col_comp else 0
                     chunk += f"<td style='font-size: 1.25rem; font-weight: 800; color: #1E3A8A;'>{count}</td>"
                 chunk += "</tr></table>"
+                
+                # 📝 최근 주요 활동 리스트 표출 기능 추가
+                recent_acts = u_ac.sort_values(by='활동 일자', ascending=False, na_position='last').head(5)
+                chunk += "<div style='font-weight: 600; margin-top: 15px; margin-bottom: 8px; color:#475569;'>▶ 최근 주요 비교과 활동 내역</div>"
+                chunk += "<ul style='padding-left: 20px; font-size: 0.95rem; color: #334155; line-height: 1.7;'>"
+                for _, act_row in recent_acts.iterrows():
+                    date_str = act_row.get('활동 일자', '-')
+                    topic = act_row.get('활동 주제', '주제 없음')
+                    act_type = act_row.get(col_type, '활동') if col_type else '활동'
+                    chunk += f"<li><b>[{act_type}]</b> {topic} <span style='color:#94A3B8; font-size:0.85rem;'>({date_str})</span></li>"
+                chunk += "</ul>"
             else: chunk += "<p>해당 학기의 비교과 이력이 없습니다.</p>"
             chunk += "</div>"
 
@@ -1120,7 +1145,8 @@ elif menu == "종합 컨설팅 리포트 출력":
             chunk += "</div>"
 
         if p_master:
-            chunk += """<div class="no-break"><h3>[ Section 5 ] 담임 교사 통합 종합 분석</h3>"""
+            # 📄 선생님 종합 분석은 무조건 '새 페이지'에서 시작되도록 page-break 강제 적용!
+            chunk += """<div class="no-break" style="page-break-before: always;"><h3>[ Section 5 ] 담임 교사 통합 종합 분석</h3>"""
             student_cache = st.session_state["global_ai_cache"].get(target_uid, {})
             if "master_consulting" in student_cache:
                 formatted_text = student_cache["master_consulting"].replace("\n", "<br>")
@@ -1194,7 +1220,8 @@ elif menu == "교사용 통합 대시보드":
     if check_dashboard_password():
         st.markdown(f"<h2 style='color: #1E3A8A; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px;'>{sel_term} 교사용 통합 대시보드</h2>", unsafe_allow_html=True)
         
-        tab_basic, tab_grade = st.tabs(["📊 학생 관리 기본 현황", "📈 학기말 성적 정밀 분석"])
+        # 💡 [추가] 모의고사 종합 분석 탭(tab_mock) 추가
+        tab_basic, tab_grade, tab_mock = st.tabs(["📊 학생 관리 기본 현황", "📈 학기말 성적 정밀 분석", "📝 모의고사 종합 분석"])
         
         with tab_basic:
             all_term_students = df_scores[df_scores['학기'] == sel_term][['반', '학번', '학생명', '고유번호']].drop_duplicates()
@@ -1290,77 +1317,4 @@ elif menu == "교사용 통합 대시보드":
                 if u_col: all_term_df[u_col] = all_term_df[u_col].apply(safe_numeric)
                 else: 
                     all_term_df['임시단위'] = 1.0
-                    u_col = '임시단위'
-                    
-                # 💡 [수정5] 9등급 자동 산출 에러 방지용 transform
-                def assign_9_tier_batch_dash(series):
-                    all_s_batch = series.dropna()
-                    return series.apply(lambda x: calc_9_tier(x, all_s_batch))
-                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'])[s_col].transform(assign_9_tier_batch_dash)
-                
-                # 💡 [수정6] 대시보드 쪽 평점 계산 KeyError 원천 차단 (직접 for문으로 Data 구성)
-                stu_agg_data = []
-                for uid, student_df in all_term_df.groupby('고유번호'):
-                    student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
-                    student_df['num_unit'] = student_df[u_col].apply(safe_numeric)
-                    
-                    valid_g5 = student_df[student_df['num_grade'] > 0]
-                    total_u_g5 = valid_g5['num_unit'].sum() if valid_g5['num_unit'].sum() > 0 else 1
-                    g5 = (valid_g5['num_grade'] * valid_g5['num_unit']).sum() / total_u_g5
-                    
-                    valid_g9 = student_df[student_df['9등급(자동)'] > 0]
-                    total_u_g9 = valid_g9['num_unit'].sum() if valid_g9['num_unit'].sum() > 0 else 1
-                    g9 = (valid_g9['9등급(자동)'] * valid_g9['num_unit']).sum() / total_u_g9
-                    
-                    raw_sum = student_df[s_col].sum()
-                    
-                    kem_df = valid_g5[valid_g5['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
-                    kem_u = kem_df['num_unit'].sum()
-                    kem_g5 = (kem_df['num_grade'] * kem_df['num_unit']).sum() / kem_u if kem_u > 0 else None
-                    
-                    ms_df = valid_g5[valid_g5['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
-                    ms_u = ms_df['num_unit'].sum()
-                    ms_g5 = (ms_df['num_grade'] * ms_df['num_unit']).sum() / ms_u if ms_u > 0 else None
-                    
-                    student_df = student_df.sort_values('학기', ascending=False)
-                    
-                    stu_agg_data.append({
-                        '고유번호': uid,
-                        '소속': student_df['반'].iloc[0] if '반' in student_df.columns else '-',
-                        '학번': student_df['학번'].iloc[0],
-                        '이름': student_df['학생명'].iloc[0],
-                        '총점합계': raw_sum,
-                        '5등급평점': g5,
-                        '9등급평점': g9,
-                        '국영수평점': kem_g5,
-                        '수과평점': ms_g5
-                    })
-                
-                stu_agg = pd.DataFrame(stu_agg_data)
-                
-                if not stu_agg.empty:
-                    stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
-                    stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
-                    stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
-                    stu_agg['등수(국영수)'] = stu_agg['국영수평점'].rank(ascending=True, method='min').astype('Int64')
-                    stu_agg['등수(수과)'] = stu_agg['수과평점'].rank(ascending=True, method='min').astype('Int64')
-                    
-                    show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
-                                 '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
-                    
-                    st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
-                
-                if show_chart_and_subj:
-                    st.markdown("---")
-                    st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
-                    sel_subj_dash = st.selectbox("조회할 교과목을 선택하십시오.", ["선택하세요"] + sorted(all_term_df['과목'].unique()))
-                    
-                    if sel_subj_dash != "선택하세요":
-                        subj_df = all_term_df[all_term_df['과목'] == sel_subj_dash].copy()
-                        subj_df['과목등수'] = subj_df[s_col].rank(ascending=False, method='min').astype(int)
-                        subj_df['전체백분위(%)'] = ((len(subj_df) - subj_df['과목등수'] + 1) / len(subj_df) * 100).round(2)
-                        
-                        show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
-                        show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
-                        
-                        st.dataframe(style_centered(show_subj), use_container_width=True, height=400, hide_index=True)
+                    u_col = '
