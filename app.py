@@ -243,7 +243,7 @@ with st.sidebar:
 st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
 
 # ==========================================
-# 💡 [추가 기능] 퀵 상담 기록창 (어느 메뉴에서든 성적 보면서 바로 기록!)
+# 💡 [추가 기능] 퀵 상담 기록창 
 # ==========================================
 with st.expander(f"📝 {sel_name} 학생 퀵 상담 기록창 (성적 조회 중 즉시 입력 가능)", expanded=False):
     with st.form("quick_counsel_form", clear_on_submit=True):
@@ -439,7 +439,7 @@ if menu == "내신 성적 분석":
 # 7. 모의고사 분석
 # ==========================================
 elif menu == "모의고사 분석":
-    mt1, mt2, mt3 = st.tabs(["전체 성적 추이", "단일 시험 분석", "누적 취약점 분석"])
+    mt1, mt2, mt3, mt4 = st.tabs(["전체 성적 추이", "단일 시험 분석", "누적 취약점 분석", "📝 가채점 및 예상 성적 산출"])
     uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
     
     with mt1:
@@ -497,6 +497,7 @@ elif menu == "모의고사 분석":
                 
             st.dataframe(style_centered(uid_mk.drop(columns=['학번', '표시식별', '학생명', '반', '고유번호'], errors='ignore')), use_container_width=True)
         else: st.info("모의고사 성적 기록이 존재하지 않습니다.")
+    
     with mt2:
         st.subheader("단일 시험 오답 정밀 분석")
         if not df_m_info.empty and not df_m_ans.empty:
@@ -516,7 +517,7 @@ elif menu == "모의고사 분석":
                         if ai_model:
                             with st.spinner("AI 엔진 분석 진행 중..."):
                                 it_col = '출제 의도' if '출제 의도' in wrong.columns else ('출제의도' if '출제의도' in wrong.columns else None)
-                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 출제 의도의 문항들을 오답 처리했습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 해당 학생의 핵심 취약점을 진단하고, 구체적이고 실질적인 보완 전략을 'AI' 단어 없이 전문적인 개조식(명사형 종결)으로 제시하십시오."
+                                prompt = f"고등학생이 모의고사 {s_su} 과목에서 다음 출제 의도의 문항들을 오답 처리했습니다: [{', '.join(wrong[it_col].dropna().astype(str).tolist()) if it_col else ''}]. 해당 학생의 핵심 취약점을 진단하고, 구체적이고 실질적인 보완 전략을 'AI 단어 없이 전문적인 개조식(명사형 종결)으로 제시하십시오."
                                 try: st.session_state["ai_cache"][cache_key] = ai_model.generate_content(prompt).text
                                 except Exception as e: st.error(f"분석 오류: {e}")
                     if cache_key in st.session_state.get("ai_cache", {}):
@@ -552,6 +553,104 @@ elif menu == "모의고사 분석":
                     if cache_key in st.session_state.get("ai_cache", {}):
                         st.markdown(f'<div style="background:#F8FAFC; border-left:4px solid #1E3A8A; padding:20px; border-radius:4px; margin-top:20px;"><b>[ 정밀 분석 보고서 ]</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
             else: st.info("모의고사 답안 누적 기록이 없습니다.")
+
+    # 💡 [신규 추가] mt4: 가채점 및 예상 성적 산출 (실제 데이터 우선 적용 로직 포함)
+    with mt4:
+        st.subheader("📝 가채점 예상 등급/표준점수 산출기")
+        st.write("학생 OMR 답안을 바탕으로 산출된 '원점수'에 선생님이 입력한 예상 등급컷을 실시간으로 대입합니다.")
+        
+        if not df_m_info.empty and not df_m_ans.empty:
+            target_ex = st.selectbox("가채점 분석할 시험명 선택", df_m_ans['시험명'].unique(), key='mk4_ex')
+            target_su = st.selectbox("영역 선택", df_m_ans[df_m_ans['시험명']==target_ex]['과목'].unique(), key='mk4_su')
+            
+            # OMR 기반 원점수 계산 로직
+            ex_info = df_m_info[(df_m_info['시험명']==target_ex) & (df_m_info['과목']==target_su)].copy()
+            st_ans = df_m_ans[(df_m_ans['시험명']==target_ex) & (df_m_ans['과목']==target_su) & (df_m_ans['고유번호']==sel_uid)]
+            
+            raw_score = 0
+            omr_str = ""
+            if not ex_info.empty and not st_ans.empty:
+                omr_str = str(st_ans.iloc[0]['OMR답안']).strip()
+                ans_key = {str(r['문항번호']): str(r.get('정답', '')) for _, r in ex_info.iterrows()}
+                points_key = {str(r['문항번호']): safe_numeric(r.get('배점', 0)) for _, r in ex_info.iterrows()}
+                
+                if 'O' in omr_str.upper() or 'X' in omr_str.upper():
+                    ox_list = list(re.sub(r'[^OXox]', '', omr_str).upper())
+                    for idx, char in enumerate(ox_list):
+                        if char == 'O': raw_score += points_key.get(str(idx + 1), 0)
+                else:
+                    ans_str = re.sub(r'[^0-9]', '', omr_str)
+                    for idx, char in enumerate(ans_str):
+                        q_num = str(idx + 1)
+                        if q_num in ans_key and char == ans_key[q_num]:
+                            raw_score += points_key.get(q_num, 0)
+                            
+            st.markdown(f"**[ {sel_name} ] 학생의 {target_ex} {target_su} 원점수 (OMR 자동 계산): <span style='color:#DC2626; font-size:1.2rem;'>{raw_score}점</span>**", unsafe_allow_html=True)
+            
+            # 21_모의고사 시트에 '실제 성적'이 있는지 검사 (우선순위 1)
+            actual_data_exists = False
+            actual_std, actual_perc, actual_grade = "-", "-", "-"
+            
+            if not df_mock.empty:
+                user_mock = df_mock[df_mock['고유번호'] == sel_uid]
+                if not user_mock.empty:
+                    user_exam_row = user_mock[user_mock['시험명'] == target_ex]
+                    if not user_exam_row.empty:
+                        row_data = user_exam_row.iloc[0]
+                        c_std = next((c for c in user_exam_row.columns if target_su in c and '표준점수' in c), None)
+                        c_perc = next((c for c in user_exam_row.columns if target_su in c and '백분위' in c), None)
+                        c_grade = next((c for c in user_exam_row.columns if target_su in c and '등급' in c), None)
+                        
+                        if c_grade and str(row_data.get(c_grade, '')).strip() not in ['', '-', 'nan']:
+                            actual_data_exists = True
+                            actual_std = row_data.get(c_std, '-') if c_std else '-'
+                            actual_perc = row_data.get(c_perc, '-') if c_perc else '-'
+                            actual_grade = row_data.get(c_grade, '-') if c_grade else '-'
+            
+            if actual_data_exists:
+                st.success("✅ [21_모의고사] 시트에 공식 성적이 이미 입력되어 있습니다. (예상 컷 무시)")
+                c1, c2, c3 = st.columns(3)
+                c1.metric(f"실제 표준점수", actual_std)
+                c2.metric(f"실제 백분위", actual_perc)
+                c3.metric(f"실제 등급", f"{actual_grade}등급" if str(actual_grade).isdigit() else actual_grade)
+            else:
+                st.info("💡 아직 공식 성적이 없습니다. 아래에 예상 컷을 입력하면 즉시 산출됩니다.")
+                
+                # 예상 컷 입력 폼
+                if "cutoffs" not in st.session_state:
+                    st.session_state["cutoffs"] = {
+                        "1등급": {"원점수": 90, "표준점수": 130, "백분위": 96},
+                        "2등급": {"원점수": 80, "표준점수": 120, "백분위": 89},
+                        "3등급": {"원점수": 70, "표준점수": 110, "백분위": 77},
+                        "4등급": {"원점수": 60, "표준점수": 100, "백분위": 60},
+                    }
+                
+                cut_df = pd.DataFrame(st.session_state["cutoffs"]).T
+                st.write(f"**[{target_su}] 예상 등급컷 (원하시는 숫자로 바로 수정하세요)**")
+                edited_cut_df = st.data_editor(cut_df, use_container_width=True)
+                
+                # 입력된 컷을 바탕으로 가채점 계산
+                est_grade = 9
+                est_std = 0
+                est_perc = 0
+                
+                if raw_score >= edited_cut_df.loc["1등급", "원점수"]:
+                    est_grade = 1; est_std = edited_cut_df.loc["1등급", "표준점수"]; est_perc = edited_cut_df.loc["1등급", "백분위"]
+                elif raw_score >= edited_cut_df.loc["2등급", "원점수"]:
+                    est_grade = 2; est_std = edited_cut_df.loc["2등급", "표준점수"]; est_perc = edited_cut_df.loc["2등급", "백분위"]
+                elif raw_score >= edited_cut_df.loc["3등급", "원점수"]:
+                    est_grade = 3; est_std = edited_cut_df.loc["3등급", "표준점수"]; est_perc = edited_cut_df.loc["3등급", "백분위"]
+                elif raw_score >= edited_cut_df.loc["4등급", "원점수"]:
+                    est_grade = 4; est_std = edited_cut_df.loc["4등급", "표준점수"]; est_perc = edited_cut_df.loc["4등급", "백분위"]
+                else:
+                    est_grade = 5 # 5등급 이하 약식 처리
+                
+                c1, c2, c3 = st.columns(3)
+                c1.metric("예상 표준점수 (가채점)", f"{est_std}점" if est_std > 0 else "산출 불가")
+                c2.metric("예상 백분위 (가채점)", f"{est_perc}%" if est_perc > 0 else "산출 불가")
+                c3.metric("예상 등급 (가채점)", f"{est_grade}등급")
+
+        else: st.warning("모의고사 문항 및 답안 데이터를 스프레드시트에 먼저 업데이트해 주세요.")
 
 # ==========================================
 # 8. 성찰 리포트 
@@ -1021,7 +1120,6 @@ elif menu == "종합 컨설팅 리포트 출력":
                     return 10 + raw_subjects.index(x)*0.1
                 ordered_subjects = sorted(raw_subjects, key=sort_key)
                 
-                # 🔥 최약점 과목 찾기 (가장 최근 시험에서 백분위가 가장 낮은 과목 탐색)
                 lowest_subj = None
                 min_perc = 999.0
                 if len(uid_mk) > 0:
@@ -1071,7 +1169,6 @@ elif menu == "종합 컨설팅 리포트 출력":
                             display_str = f"<div style='text-align:left; display:inline-block; line-height:1.5;'><small style='color:#64748B;'>표준:</small> {f_std}<br><small style='color:#64748B;'>백분:</small> <span style='font-weight:700;'>{f_perc_str}</span><br><small style='color:#64748B;'>등급:</small> <span style='color:#1E3A8A; font-weight:800;'>{f_grade_str}</span></div>"
                             if f_std == "-" and f_perc == "-" and f_grade == "-": display_str = "-"
                         
-                        # 🔥 최약점 과목 붉은색 하이라이트 적용
                         if is_latest_row and subj == lowest_subj and min_perc != 999.0 and display_str != "-":
                             display_str = f"<div style='border: 2px solid #DC2626; padding: 6px; border-radius: 6px; background-color: #FEF2F2;'>{display_str}<div style='color:#DC2626; font-size:0.75rem; font-weight:800; margin-top:4px;'>🔥최우선 보완</div></div>"
 
@@ -1110,7 +1207,6 @@ elif menu == "종합 컨설팅 리포트 출력":
                     chunk += f"<td style='font-size: 1.25rem; font-weight: 800; color: #1E3A8A;'>{count}</td>"
                 chunk += "</tr></table>"
                 
-                # 📝 최근 주요 활동 리스트 표출 기능 추가
                 recent_acts = u_ac.sort_values(by='활동 일자', ascending=False, na_position='last').head(5)
                 chunk += "<div style='font-weight: 600; margin-top: 15px; margin-bottom: 8px; color:#475569;'>▶ 최근 주요 비교과 활동 내역</div>"
                 chunk += "<ul style='padding-left: 20px; font-size: 0.95rem; color: #334155; line-height: 1.7;'>"
@@ -1145,7 +1241,6 @@ elif menu == "종합 컨설팅 리포트 출력":
             chunk += "</div>"
 
         if p_master:
-            # 📄 선생님 종합 분석은 무조건 '새 페이지'에서 시작되도록 page-break 강제 적용!
             chunk += """<div class="no-break" style="page-break-before: always;"><h3>[ Section 5 ] 담임 교사 통합 종합 분석</h3>"""
             student_cache = st.session_state["global_ai_cache"].get(target_uid, {})
             if "master_consulting" in student_cache:
