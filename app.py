@@ -1220,7 +1220,6 @@ elif menu == "교사용 통합 대시보드":
     if check_dashboard_password():
         st.markdown(f"<h2 style='color: #1E3A8A; border-bottom: 2px solid #E2E8F0; padding-bottom: 10px;'>{sel_term} 교사용 통합 대시보드</h2>", unsafe_allow_html=True)
         
-        # 💡 [추가] 모의고사 종합 분석 탭(tab_mock) 추가
         tab_basic, tab_grade, tab_mock = st.tabs(["📊 학생 관리 기본 현황", "📈 학기말 성적 정밀 분석", "📝 모의고사 종합 분석"])
         
         with tab_basic:
@@ -1317,4 +1316,172 @@ elif menu == "교사용 통합 대시보드":
                 if u_col: all_term_df[u_col] = all_term_df[u_col].apply(safe_numeric)
                 else: 
                     all_term_df['임시단위'] = 1.0
-                    u_col = '
+                    u_col = '임시단위'
+                    
+                def assign_9_tier_batch_dash(series):
+                    all_s_batch = series.dropna()
+                    return series.apply(lambda x: calc_9_tier(x, all_s_batch))
+                all_term_df['9등급(자동)'] = all_term_df.groupby(['학기', '과목'])[s_col].transform(assign_9_tier_batch_dash)
+                
+                stu_agg_data = []
+                for uid, student_df in all_term_df.groupby('고유번호'):
+                    student_df['num_grade'] = student_df['등급'].apply(safe_numeric)
+                    student_df['num_unit'] = student_df[u_col].apply(safe_numeric)
+                    
+                    valid_g5 = student_df[student_df['num_grade'] > 0]
+                    total_u_g5 = valid_g5['num_unit'].sum() if valid_g5['num_unit'].sum() > 0 else 1
+                    g5 = (valid_g5['num_grade'] * valid_g5['num_unit']).sum() / total_u_g5
+                    
+                    valid_g9 = student_df[student_df['9등급(자동)'] > 0]
+                    total_u_g9 = valid_g9['num_unit'].sum() if valid_g9['num_unit'].sum() > 0 else 1
+                    g9 = (valid_g9['9등급(자동)'] * valid_g9['num_unit']).sum() / total_u_g9
+                    
+                    raw_sum = student_df[s_col].sum()
+                    
+                    kem_df = valid_g5[valid_g5['과목'].str.contains('국어|영어|수학|문학|독서|화법|작문|언어|매체|기하|미적|확률|통계|회화|영작', regex=True)]
+                    kem_u = kem_df['num_unit'].sum()
+                    kem_g5 = (kem_df['num_grade'] * kem_df['num_unit']).sum() / kem_u if kem_u > 0 else None
+                    
+                    ms_df = valid_g5[valid_g5['과목'].str.contains('수학|과학|물리|화학|생명|지구|기하|미적|확률|통계|정보', regex=True)]
+                    ms_u = ms_df['num_unit'].sum()
+                    ms_g5 = (ms_df['num_grade'] * ms_df['num_unit']).sum() / ms_u if ms_u > 0 else None
+                    
+                    student_df = student_df.sort_values('학기', ascending=False)
+                    
+                    stu_agg_data.append({
+                        '고유번호': uid,
+                        '소속': student_df['반'].iloc[0] if '반' in student_df.columns else '-',
+                        '학번': student_df['학번'].iloc[0],
+                        '이름': student_df['학생명'].iloc[0],
+                        '총점합계': raw_sum,
+                        '5등급평점': g5,
+                        '9등급평점': g9,
+                        '국영수평점': kem_g5,
+                        '수과평점': ms_g5
+                    })
+                
+                stu_agg = pd.DataFrame(stu_agg_data)
+                
+                if not stu_agg.empty:
+                    stu_agg['전교등수(총점)'] = stu_agg['총점합계'].rank(ascending=False, method='min').astype(int)
+                    stu_agg['전교등수(5등급)'] = stu_agg['5등급평점'].rank(ascending=True, method='min').astype(int)
+                    stu_agg['전교등수(9등급)'] = stu_agg['9등급평점'].rank(ascending=True, method='min').astype(int)
+                    stu_agg['등수(국영수)'] = stu_agg['국영수평점'].rank(ascending=True, method='min').astype('Int64')
+                    stu_agg['등수(수과)'] = stu_agg['수과평점'].rank(ascending=True, method='min').astype('Int64')
+                    
+                    show_cols = ['소속', '학번', '이름', '전교등수(5등급)', '5등급평점', '전교등수(9등급)', '9등급평점', 
+                                 '전교등수(총점)', '총점합계', '등수(국영수)', '국영수평점', '등수(수과)', '수과평점']
+                    
+                    st.dataframe(style_centered(stu_agg.sort_values('전교등수(5등급)')[show_cols]).format(precision=2), use_container_width=True, height=400, hide_index=True)
+                
+                if show_chart_and_subj:
+                    st.markdown("---")
+                    st.subheader("🔍 특정 과목별 전체 전교 등수 조회")
+                    sel_subj_dash = st.selectbox("조회할 교과목을 선택하십시오.", ["선택하세요"] + sorted(all_term_df['과목'].unique()))
+                    
+                    if sel_subj_dash != "선택하세요":
+                        subj_df = all_term_df[all_term_df['과목'] == sel_subj_dash].copy()
+                        subj_df['과목등수'] = subj_df[s_col].rank(ascending=False, method='min').astype(int)
+                        subj_df['전체백분위(%)'] = ((len(subj_df) - subj_df['과목등수'] + 1) / len(subj_df) * 100).round(2)
+                        
+                        show_subj = subj_df[['반', '학번', '학생명', '과목', s_col, '성취도', '등급', '과목등수', '전체백분위(%)']].sort_values('과목등수')
+                        show_subj.rename(columns={s_col: '취득점수'}, inplace=True)
+                        
+                        st.dataframe(style_centered(show_subj), use_container_width=True, height=400, hide_index=True)
+
+        with tab_mock:
+            st.markdown("#### 📝 학급/학년 모의고사 종합 분석")
+            if df_mock.empty or df_m_ans.empty or df_m_info.empty:
+                st.warning("모의고사 성적 또는 문항/답안 데이터가 부족합니다. (21, 22, 23번 시트 확인)")
+            else:
+                all_exams = df_m_ans['시험명'].dropna().unique().tolist()
+                if not all_exams:
+                    st.info("시험 데이터가 없습니다.")
+                else:
+                    col1, col2 = st.columns([1, 2])
+                    with col1:
+                        sel_exam_dash = st.selectbox("분석할 모의고사를 선택하세요.", all_exams)
+                    
+                    st.markdown("---")
+                    
+                    st.subheader(f"📊 [{sel_exam_dash}] 과목별 평균 및 표준편차 (표준점수 기준)")
+                    exam_cols = [c for c in df_mock.columns if sel_exam_dash in c and '표준점수' in c]
+                    
+                    if exam_cols:
+                        stat_data = []
+                        for c in exam_cols:
+                            subj_name = c.replace(sel_exam_dash, "").replace("표준점수", "").strip()
+                            numeric_s = df_mock[c].apply(safe_numeric)
+                            numeric_s = numeric_s[numeric_s > 0]
+                            if len(numeric_s) > 0:
+                                stat_data.append({
+                                    '과목': subj_name,
+                                    '응시인원': len(numeric_s),
+                                    '최고점': numeric_s.max(),
+                                    '평균': numeric_s.mean(),
+                                    '표준편차': numeric_s.std()
+                                })
+                        if stat_data:
+                            stat_df = pd.DataFrame(stat_data)
+                            st.dataframe(style_centered(stat_df).format({'평균': '{:.2f}', '표준편차': '{:.2f}', '최고점': '{:.0f}'}), use_container_width=True)
+                    else:
+                        st.info("선택한 시험의 표준점수 데이터가 21_모의고사 시트에 없습니다. (열 이름 규칙: '시험명 과목명 표준점수')")
+
+                    st.markdown("---")
+                    
+                    st.subheader(f"🚨 [{sel_exam_dash}] 과목별 오답률 높은 문항 (Top 5)")
+                    
+                    ans_df = df_m_ans[df_m_ans['시험명'] == sel_exam_dash].copy()
+                    info_df = df_m_info[df_m_info['시험명'] == sel_exam_dash].copy()
+                    
+                    if not ans_df.empty and not info_df.empty:
+                        subjs = ans_df['과목'].unique()
+                        
+                        cols = st.columns(2)
+                        col_idx = 0
+                        
+                        for subj in subjs:
+                            s_ans = ans_df[ans_df['과목'] == subj]
+                            s_info = info_df[info_df['과목'] == subj].sort_values('문항번호')
+                            
+                            if s_info.empty: continue
+                            
+                            q_wrong_counts = {str(q): 0 for q in s_info['문항번호'].tolist()}
+                            total_students = len(s_ans)
+                            ans_key = {str(r['문항번호']): str(r.get('정답', '')) for _, r in s_info.iterrows()}
+                            
+                            for _, r_a in s_ans.iterrows():
+                                omr = str(r_a.get('OMR답안','')).strip()
+                                if 'O' in omr.upper() or 'X' in omr.upper():
+                                    ox_list = list(re.sub(r'[^OXox]', '', omr).upper())
+                                    for idx, char in enumerate(ox_list):
+                                        q_num = str(idx + 1)
+                                        if q_num in q_wrong_counts and char == 'X':
+                                            q_wrong_counts[q_num] += 1
+                                else:
+                                    ans_str = re.sub(r'[^0-9]', '', omr)
+                                    for idx, char in enumerate(ans_str):
+                                        q_num = str(idx + 1)
+                                        if q_num in ans_key and char != ans_key[q_num]:
+                                            q_wrong_counts[q_num] += 1
+                            
+                            wrong_rates = []
+                            for q_num, w_count in q_wrong_counts.items():
+                                rate = (w_count / total_students * 100) if total_students > 0 else 0
+                                intent_col = '출제 의도' if '출제 의도' in s_info.columns else ('출제의도' if '출제의도' in s_info.columns else None)
+                                intent = s_info[s_info['문항번호'].astype(str) == q_num][intent_col].iloc[0] if intent_col and len(s_info[s_info['문항번호'].astype(str) == q_num])>0 else "-"
+                                wrong_rates.append({
+                                    '문항번호': q_num,
+                                    '출제의도': intent,
+                                    '오답률(%)': rate
+                                })
+                            
+                            wr_df = pd.DataFrame(wrong_rates).sort_values('오답률(%)', ascending=False).head(5)
+                            
+                            with cols[col_idx % 2]:
+                                st.markdown(f"<div style='background-color:#F8FAFC; padding:15px; border-radius:4px; border-left:4px solid #DC2626; margin-bottom:20px;'><b>[{subj}] 오답률 Top 5</b> <span style='font-size:0.85rem; color:#64748B;'>(응시: {total_students}명)</span></div>", unsafe_allow_html=True)
+                                st.dataframe(style_centered(wr_df).format({'오답률(%)': '{:.1f}%'}), use_container_width=True, hide_index=True)
+                            
+                            col_idx += 1
+                    else:
+                        st.info("해당 시험의 학생 답안(23_모의고사_학생답안) 또는 문항 정보(22_모의고사_문항정보)가 없습니다.")
