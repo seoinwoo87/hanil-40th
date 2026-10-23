@@ -26,23 +26,19 @@ st.markdown("""
     @import url('https://fonts.googleapis.com/css2?family=Pretendard:wght@300;400;600;800&display=swap');
     html, body, [class*="css"] { font-family: 'Pretendard', sans-serif; background-color: #F8FAFC; color: #0F172A; }
     
-    /* 드롭다운(선택칸) 및 입력창 또렷하게 명도 조정 */
     div[data-baseweb="select"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
     div[data-baseweb="input"] > div { background-color: #FFFFFF !important; border: 1px solid #94A3B8 !important; border-radius: 4px !important; }
     input, textarea, div[data-baseweb="select"] * { color: #0F172A !important; }
     
-    /* 탭(Tab) 메뉴 가독성 상향 */
     button[data-baseweb="tab"] { font-size: 1.05rem !important; font-weight: 600 !important; color: #64748B !important; }
     button[data-baseweb="tab"][aria-selected="true"] { color: #1E3A8A !important; border-bottom: 3px solid #1E3A8A !important; font-weight: 800 !important; }
 
-    /* 각진 테두리와 깊은 네이비 포인트 컬러 */
     .stMetric { background: white; border: 1px solid #CBD5E1; padding: 15px !important; border-radius: 4px !important; border-top: 3px solid #1E3A8A !important; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .timeline-card { background: white; border: 1px solid #CBD5E1; border-radius: 4px; padding: 25px; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); border-left: 4px solid #1E3A8A; }
     .badge { display: inline-block; padding: 4px 10px; border-radius: 2px; font-size: 0.75rem; font-weight: 700; background: #F1F5F9; color: #1E293B; border: 1px solid #94A3B8; margin-bottom: 10px; margin-right: 5px; letter-spacing: -0.5px; }
     .stat-box { background: #FFFFFF; border: 1px solid #CBD5E1; border-radius: 4px; padding: 15px; text-align: center; border-top: 3px solid #475569; }
     .stApp [data-testid="stExpander"] { background: white !important; border-radius: 4px; border: 1px solid #CBD5E1; }
     
-    /* 표(테이블) 가독성 세팅 */
     table, th, td { text-align: center !important; border-color: #CBD5E1 !important; }
     th { background-color: #E2E8F0 !important; color: #0F172A !important; font-weight: 800 !important; }
     
@@ -60,6 +56,10 @@ st.markdown("""
 
 def style_centered(df):
     return df.style.set_properties(**{'text-align': 'center'}).set_table_styles([dict(selector='th', props=[('text-align', 'center')])])
+
+# 💡 전역 등급컷 상태 초기화 (대시보드와 학생화면 간 연동을 위함)
+if "global_cutoffs" not in st.session_state:
+    st.session_state["global_cutoffs"] = {}
 
 # ==========================================
 # 2. 보안 설정 (비밀번호)
@@ -243,38 +243,30 @@ with st.sidebar:
 st.markdown(f"<h2 style='color: #0F172A; border-bottom: 2px solid #1E3A8A; padding-bottom: 10px;'>[ {sel_student} ] 분석 리포트</h2>", unsafe_allow_html=True)
 
 # ==========================================
-# 💡 [추가 기능] 퀵 상담 기록창 
+# 💡 퀵 상담 기록창
 # ==========================================
 with st.expander(f"📝 {sel_name} 학생 퀵 상담 기록창 (성적 조회 중 즉시 입력 가능)", expanded=False):
     with st.form("quick_counsel_form", clear_on_submit=True):
         qc_cols = st.columns([1, 1])
-        with qc_cols[0]:
-            qc_date = st.date_input("상담 진행 일자", key="qc_date")
-        with qc_cols[1]:
-            qc_type = st.selectbox("상담 주요 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"], key="qc_type")
+        with qc_cols[0]: qc_date = st.date_input("상담 진행 일자", key="qc_date")
+        with qc_cols[1]: qc_type = st.selectbox("상담 주요 유형", ["학습/성적", "진로/진학", "학교생활/교우관계", "심리/정서", "학부모상담", "기타"], key="qc_type")
+        qc_memo = st.text_area("상담 결과 및 주요 코멘트", height=100)
         
-        qc_memo = st.text_area("상담 결과 및 주요 코멘트", height=100, placeholder="아래 성적이나 그래프를 보며 분석한 내용을 즉시 기록하세요.")
-        
-        if st.form_submit_button("상담 기록 구글 시트에 바로 저장하기 💾"):
+        if st.form_submit_button("상담 기록 구글 시트에 저장하기 💾"):
             if qc_memo.strip():
-                with st.spinner("구글 시트 '71_상담기록'에 저장 중..."):
+                with st.spinner("저장 중..."):
                     try:
                         scope = ["https://spreadsheets.google.com/feeds", "https://www.googleapis.com/auth/drive"]
                         creds = ServiceAccountCredentials.from_json_keyfile_dict(dict(st.secrets["gcp_service_account"]), scope)
                         doc = gspread.authorize(creds).open("40기 마스터 파일")
-                        try: 
-                            sh_c = doc.worksheet("71_상담기록")
+                        try: sh_c = doc.worksheet("71_상담기록")
                         except:
                             sh_c = doc.add_worksheet(title="71_상담기록", rows="1000", cols="10")
                             sh_c.append_row(["학번", "이름", "상담일자", "상담유형", "상담내용"])
-                        
                         sh_c.append_row([sel_student.split(" ")[0], sel_name, str(qc_date), qc_type, qc_memo])
                         st.cache_resource.clear()
-                        st.success("✅ 퀵 상담 기록이 성공적으로 안전하게 저장되었습니다! (데이터 동기화를 위해 좌측 '데이터 동기화' 버튼을 눌러주세요)")
-                    except Exception as e:
-                        st.error(f"저장 실패: {e}")
-            else:
-                st.warning("상담 내용을 입력해 주세요.")
+                        st.success("✅ 저장 성공!")
+                    except Exception as e: st.error(f"저장 실패: {e}")
 
 # ==========================================
 # 6. 내신 분석 
@@ -439,7 +431,6 @@ if menu == "내신 성적 분석":
 # 7. 모의고사 분석
 # ==========================================
 elif menu == "모의고사 분석":
-    # 💡 [추가] mt4 탭 (가채점 및 예상 성적 산출) 포함
     mt1, mt2, mt3, mt4 = st.tabs(["전체 성적 추이", "단일 시험 분석", "누적 취약점 분석", "📝 가채점 예상 성적 산출"])
     uid_mk = df_mock[df_mock['고유번호'] == sel_uid].copy()
     
@@ -498,6 +489,7 @@ elif menu == "모의고사 분석":
                 
             st.dataframe(style_centered(uid_mk.drop(columns=['학번', '표시식별', '학생명', '반', '고유번호'], errors='ignore')), use_container_width=True)
         else: st.info("모의고사 성적 기록이 존재하지 않습니다.")
+        
     with mt2:
         st.subheader("단일 시험 오답 정밀 분석")
         if not df_m_info.empty and not df_m_ans.empty:
@@ -554,10 +546,10 @@ elif menu == "모의고사 분석":
                         st.markdown(f'<div style="background:#F8FAFC; border-left:4px solid #1E3A8A; padding:20px; border-radius:4px; margin-top:20px;"><b>[ 정밀 분석 보고서 ]</b><br><br>{st.session_state["ai_cache"][cache_key]}</div>', unsafe_allow_html=True)
             else: st.info("모의고사 답안 누적 기록이 없습니다.")
             
-    # 💡 [추가 로직] 가채점 탭!
+    # 💡 [수정된 로직] 학생 화면: 가채점 전역 컷팅표 '읽기' 전용
     with mt4:
         st.subheader("📝 가채점 예상 등급/표준점수 산출기")
-        st.write("학생 OMR 답안을 바탕으로 산출된 '원점수'에 선생님이 입력한 예상 등급컷을 실시간으로 대입합니다.")
+        st.write("학생 OMR 답안을 바탕으로 산출된 '원점수'에 선생님이 [교사용 대시보드]에서 일괄 설정한 예상 등급컷을 실시간으로 대입합니다.")
         
         if not df_m_info.empty and not df_m_ans.empty:
             target_ex = st.selectbox("가채점 분석할 시험명 선택", df_m_ans['시험명'].unique(), key='mk4_ex')
@@ -586,6 +578,7 @@ elif menu == "모의고사 분석":
                             
             st.markdown(f"**[ {sel_name} ] 학생의 {target_ex} {target_su} 원점수 (OMR 자동 계산): <span style='color:#DC2626; font-size:1.2rem;'>{raw_score}점</span>**", unsafe_allow_html=True)
             
+            # 실제 성적 검사 (우선순위 1)
             actual_data_exists = False
             actual_std, actual_perc, actual_grade = "-", "-", "-"
             
@@ -612,35 +605,32 @@ elif menu == "모의고사 분석":
                 c2.metric(f"실제 백분위", actual_perc)
                 c3.metric(f"실제 등급", f"{actual_grade}등급" if str(actual_grade).isdigit() else actual_grade)
             else:
-                st.info("💡 아직 공식 성적이 없습니다. 아래에 예상 컷을 입력하면 즉시 산출됩니다.")
-                if "cutoffs" not in st.session_state:
-                    st.session_state["cutoffs"] = {
-                        "1등급": {"원점수": 90, "표준점수": 130, "백분위": 96},
-                        "2등급": {"원점수": 80, "표준점수": 120, "백분위": 89},
-                        "3등급": {"원점수": 70, "표준점수": 110, "백분위": 77},
-                        "4등급": {"원점수": 60, "표준점수": 100, "백분위": 60},
-                    }
+                st.info("💡 아직 공식 성적이 없습니다. 교사용 대시보드에서 설정된 가채점 기준표를 바탕으로 예상 성적을 산출합니다.")
                 
-                cut_df = pd.DataFrame(st.session_state["cutoffs"]).T
-                st.write(f"**[{target_su}] 예상 등급컷 (원하시는 숫자로 바로 수정하세요)**")
-                edited_cut_df = st.data_editor(cut_df, use_container_width=True)
+                exam_cutoffs = st.session_state["global_cutoffs"].get(target_ex, {}).get(target_su, None)
                 
-                est_grade = 9; est_std = 0; est_perc = 0
-                
-                if raw_score >= edited_cut_df.loc["1등급", "원점수"]:
-                    est_grade = 1; est_std = edited_cut_df.loc["1등급", "표준점수"]; est_perc = edited_cut_df.loc["1등급", "백분위"]
-                elif raw_score >= edited_cut_df.loc["2등급", "원점수"]:
-                    est_grade = 2; est_std = edited_cut_df.loc["2등급", "표준점수"]; est_perc = edited_cut_df.loc["2등급", "백분위"]
-                elif raw_score >= edited_cut_df.loc["3등급", "원점수"]:
-                    est_grade = 3; est_std = edited_cut_df.loc["3등급", "표준점수"]; est_perc = edited_cut_df.loc["3등급", "백분위"]
-                elif raw_score >= edited_cut_df.loc["4등급", "원점수"]:
-                    est_grade = 4; est_std = edited_cut_df.loc["4등급", "표준점수"]; est_perc = edited_cut_df.loc["4등급", "백분위"]
-                else: est_grade = 5 
-                
-                c1, c2, c3 = st.columns(3)
-                c1.metric("예상 표준점수 (가채점)", f"{est_std}점" if est_std > 0 else "산출 불가")
-                c2.metric("예상 백분위 (가채점)", f"{est_perc}%" if est_perc > 0 else "산출 불가")
-                c3.metric("예상 등급 (가채점)", f"{est_grade}등급")
+                if exam_cutoffs is None:
+                    st.warning("⚠️ 교사용 통합 대시보드의 [📝 모의고사 종합 분석] 탭에서 해당 과목의 등급컷을 먼저 설정해 주세요.")
+                else:
+                    cut_df = pd.DataFrame(exam_cutoffs).T
+                    st.table(style_centered(cut_df))
+                    
+                    est_grade = 9; est_std = 0; est_perc = 0
+                    
+                    if raw_score >= cut_df.loc["1등급", "원점수"]:
+                        est_grade = 1; est_std = cut_df.loc["1등급", "표준점수"]; est_perc = cut_df.loc["1등급", "백분위"]
+                    elif raw_score >= cut_df.loc["2등급", "원점수"]:
+                        est_grade = 2; est_std = cut_df.loc["2등급", "표준점수"]; est_perc = cut_df.loc["2등급", "백분위"]
+                    elif raw_score >= cut_df.loc["3등급", "원점수"]:
+                        est_grade = 3; est_std = cut_df.loc["3등급", "표준점수"]; est_perc = cut_df.loc["3등급", "백분위"]
+                    elif raw_score >= cut_df.loc["4등급", "원점수"]:
+                        est_grade = 4; est_std = cut_df.loc["4등급", "표준점수"]; est_perc = cut_df.loc["4등급", "백분위"]
+                    else: est_grade = 5 
+                    
+                    c1, c2, c3 = st.columns(3)
+                    c1.metric("예상 표준점수 (가채점)", f"{est_std}점" if est_std > 0 else "산출 불가")
+                    c2.metric("예상 백분위 (가채점)", f"{est_perc}%" if est_perc > 0 else "산출 불가")
+                    c3.metric("예상 등급 (가채점)", f"{est_grade}등급")
 
         else: st.warning("모의고사 문항 및 답안 데이터를 스프레드시트에 먼저 업데이트해 주세요.")
 
@@ -1572,3 +1562,30 @@ elif menu == "교사용 통합 대시보드":
                             col_idx += 1
                     else:
                         st.info("해당 시험의 학생 답안(23_모의고사_학생답안) 또는 문항 정보(22_모의고사_문항정보)가 없습니다.")
+
+                    # 💡 [추가 로직] 교사 대시보드에서 전역 등급컷 일괄 세팅
+                    st.markdown("---")
+                    st.subheader("⚙️ 전교생 가채점 등급컷 일괄 설정")
+                    st.write("여기서 한 번만 입력하시면 모든 학생의 '가채점 예상 성적 산출' 탭에 실시간으로 일괄 적용됩니다.")
+                    
+                    dash_exam = st.selectbox("등급컷을 설정할 시험명", df_m_ans['시험명'].dropna().unique(), key='dash_cut_ex')
+                    dash_subj = st.selectbox("등급컷을 설정할 과목", df_m_ans[df_m_ans['시험명']==dash_exam]['과목'].unique(), key='dash_cut_su')
+                    
+                    if dash_exam not in st.session_state["global_cutoffs"]:
+                        st.session_state["global_cutoffs"][dash_exam] = {}
+                        
+                    default_cutoffs = {
+                        "1등급": {"원점수": 90, "표준점수": 130, "백분위": 96},
+                        "2등급": {"원점수": 80, "표준점수": 120, "백분위": 89},
+                        "3등급": {"원점수": 70, "표준점수": 110, "백분위": 77},
+                        "4등급": {"원점수": 60, "표준점수": 100, "백분위": 60},
+                    }
+                    
+                    current_cutoffs = st.session_state["global_cutoffs"][dash_exam].get(dash_subj, default_cutoffs)
+                    cut_df_dash = pd.DataFrame(current_cutoffs).T
+                    
+                    edited_cut_df_dash = st.data_editor(cut_df_dash, use_container_width=True, key=f"editor_{dash_exam}_{dash_subj}")
+                    
+                    if st.button(f"[{dash_subj}] 등급컷 전체 학생에게 즉시 적용"):
+                        st.session_state["global_cutoffs"][dash_exam][dash_subj] = edited_cut_df_dash.T.to_dict()
+                        st.success(f"✅ {dash_exam} {dash_subj} 등급컷이 성공적으로 일괄 설정되었습니다! 이제 학생 분석 메뉴의 [가채점 탭]에서 확인해보세요.")
